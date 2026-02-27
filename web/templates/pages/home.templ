@@ -1,0 +1,282 @@
+package pages
+
+import (
+	"fmt"
+	"strconv"
+
+	"github.com/refringe/huntarr2/web/templates/layouts"
+)
+
+// schedulerPanelInit returns an x-data expression that seeds the Alpine
+// component with the server-rendered scheduler state, preventing a flash
+// when the first client poll overwrites the initial DOM.
+func schedulerPanelInit(data HomeData) string {
+	return fmt.Sprintf(
+		"{ ...schedulerPanel(), status: { running: %t, searchesThisHour: %d, hourlyLimit: %d, instances: [] } }",
+		data.SchedulerRunning, data.SearchesThisHour, data.HourlyLimit,
+	)
+}
+
+templ Home(data HomeData) {
+	@layouts.Base("Home", "/") {
+		<h1 class="text-2xl font-bold">Home</h1>
+		if !data.HasArrInstances {
+			@gettingStarted(data)
+		} else {
+			@trashGuidesBanner("huntarr2:dismiss:trash-guides-home")
+		}
+		if data.HasArrInstances {
+			<div class="mt-6 space-y-8">
+				<!-- Section 1: Huntarr2 Activity -->
+				<section>
+					<h2 class="text-lg font-semibold text-white">Huntarr2 Activity</h2>
+					<div class="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+						<div class="rounded-lg border border-gray-700 bg-gray-800 p-4">
+							<p class="text-sm text-gray-300">Searches (All Time)</p>
+							<p class="mt-1 text-2xl font-bold text-white">{ strconv.Itoa(data.AllTimeSearches) }</p>
+						</div>
+						<div class="rounded-lg border border-gray-700 bg-gray-800 p-4">
+							<p class="text-sm text-gray-300">Skipped (All Time)</p>
+							<p class="mt-1 text-2xl font-bold text-white">{ strconv.Itoa(data.AllTimeSkipped) }</p>
+						</div>
+						<div class="rounded-lg border border-gray-700 bg-gray-800 p-4">
+							<p class="text-sm text-gray-300">Downloads (All Time)</p>
+							<p class="mt-1 text-2xl font-bold text-white">{ strconv.Itoa(data.AllTimeDownloads) }</p>
+						</div>
+						<div class="rounded-lg border border-gray-700 bg-gray-800 p-4">
+							<p class="text-sm text-gray-300">Searches (24h)</p>
+							<p class="mt-1 text-2xl font-bold text-white">{ strconv.Itoa(data.RecentSearches) }</p>
+						</div>
+						<div class="rounded-lg border border-gray-700 bg-gray-800 p-4">
+							<p class="text-sm text-gray-300">Skipped (24h)</p>
+							<p class="mt-1 text-2xl font-bold text-white">{ strconv.Itoa(data.RecentSkipped) }</p>
+						</div>
+						<div class="rounded-lg border border-gray-700 bg-gray-800 p-4">
+							<p class="text-sm text-gray-300">Downloads (24h)</p>
+							<p class="mt-1 text-2xl font-bold text-white">{ strconv.Itoa(data.RecentDownloads) }</p>
+						</div>
+						<div class="rounded-lg border border-gray-700 bg-gray-800 p-4">
+							<p class="text-sm text-gray-300">Upgrades (All Time)</p>
+							<p class="mt-1 text-2xl font-bold text-white">{ strconv.Itoa(data.AllTimeUpgrades) }</p>
+						</div>
+						<div class="rounded-lg border border-gray-700 bg-gray-800 p-4">
+							<p class="text-sm text-gray-300">Upgrades (24h)</p>
+							<p class="mt-1 text-2xl font-bold text-white">{ strconv.Itoa(data.RecentUpgrades) }</p>
+						</div>
+						<div class="rounded-lg border border-gray-700 bg-gray-800 p-4">
+							<p class="text-sm text-gray-300">Total Results (All Time)</p>
+							<p class="mt-1 text-2xl font-bold text-white">{ strconv.Itoa(data.AllTimeUpgrades + data.AllTimeDownloads) }</p>
+						</div>
+					</div>
+					if len(data.PerInstance) > 0 {
+						<div class="mt-4 overflow-hidden rounded-lg border border-gray-700">
+							<table class="w-full text-left text-sm">
+								<caption class="sr-only">Search and download statistics per instance</caption>
+								<thead class="bg-gray-800 text-gray-300">
+									<tr>
+										<th scope="col" class="px-4 py-3">Instance</th>
+										<th scope="col" class="px-4 py-3">Type</th>
+										<th scope="col" class="px-4 py-3 text-right">Searches</th>
+										<th scope="col" class="px-4 py-3 text-right">Skipped</th>
+										<th scope="col" class="px-4 py-3 text-right">Upgrades</th>
+										<th scope="col" class="px-4 py-3 text-right">Downloads</th>
+									</tr>
+								</thead>
+								<tbody class="divide-y divide-gray-700">
+									for _, inst := range data.PerInstance {
+										<tr class="bg-gray-800/50">
+											<td class="px-4 py-3 text-white">{ inst.InstanceName }</td>
+											<td class="px-4 py-3 text-gray-300">{ inst.AppType }</td>
+											<td class="px-4 py-3 text-right text-gray-300">{ strconv.Itoa(inst.SearchCount) }</td>
+											<td class="px-4 py-3 text-right text-gray-300">{ strconv.Itoa(inst.SkipCount) }</td>
+											<td class="px-4 py-3 text-right text-gray-300">{ strconv.Itoa(inst.UpgradeCount) }</td>
+											<td class="px-4 py-3 text-right text-gray-300">{ strconv.Itoa(inst.DownloadCount) }</td>
+										</tr>
+									}
+								</tbody>
+							</table>
+						</div>
+					}
+					@schedulerPanel(data)
+				</section>
+				<!-- Section 2: Instance Status -->
+				<section>
+					<h2 class="text-lg font-semibold text-white">Instance Status</h2>
+					<div class="mt-3 space-y-4">
+						if len(data.ArrInstances) > 0 {
+							<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+								for _, inst := range data.ArrInstances {
+									<div class="rounded-lg border border-gray-700 bg-gray-800 p-4">
+										<div class="flex items-center justify-between">
+											<div class="flex items-center gap-2">
+												<h3 class="font-medium text-white">{ inst.Name }</h3>
+												<span class="inline-flex items-center rounded-full bg-gray-700 px-2 py-0.5 text-xs text-white">{ inst.AppType }</span>
+											</div>
+											if inst.Connected {
+												<span class="inline-flex items-center rounded-full bg-green-900 px-2 py-1 text-xs text-green-300">Connected</span>
+											} else {
+												<span class="inline-flex items-center rounded-full bg-red-900 px-2 py-1 text-xs text-red-300">Disconnected</span>
+											}
+										</div>
+										if inst.Connected {
+											<p class="mt-1 text-sm text-gray-300">{ inst.AppType } { inst.Version }</p>
+										}
+									</div>
+								}
+							</div>
+						}
+					</div>
+				</section>
+			</div>
+		}
+		<script src="/static/js/scheduler.js"></script>
+	}
+}
+
+templ gettingStarted(data HomeData) {
+	<div class="mt-6 rounded-lg border border-blue-800 bg-blue-950/50 p-6">
+		<h2 class="text-lg font-semibold text-white">Getting Started</h2>
+		<p class="mt-2 text-sm text-gray-300">
+			Huntarr2 automates quality upgrades for your *arr applications.
+			Follow these steps to get up and running.
+		</p>
+		<ol class="mt-4 space-y-4">
+			<li class="flex gap-3">
+				if data.HasArrInstances {
+					<svg class="mt-0.5 h-5 w-5 shrink-0 text-green-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+						<path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5z" clip-rule="evenodd"></path>
+					</svg>
+				} else {
+					<svg class="mt-0.5 h-5 w-5 shrink-0 text-gray-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+						<path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16zm0-2a6 6 0 1 0 0-12 6 6 0 0 0 0 12z" clip-rule="evenodd"></path>
+					</svg>
+				}
+				<div>
+					<p class="font-medium text-white">1. Add an *arr application</p>
+					<p class="text-sm text-gray-300">
+						Add at least one of Sonarr, Radarr, Lidarr, or Whisparr.
+					</p>
+					<a href="/connections" class="text-sm text-blue-400 hover:underline focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-gray-900">Go to Connections</a>
+				</div>
+			</li>
+			<li class="flex gap-3">
+				<svg class="mt-0.5 h-5 w-5 shrink-0 text-gray-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+					<path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16zm0-2a6 6 0 1 0 0-12 6 6 0 0 0 0 12z" clip-rule="evenodd"></path>
+				</svg>
+				<div>
+					<p class="font-medium text-white">2. Review your settings</p>
+					<p class="text-sm text-gray-300">
+						Adjust batch size, cooldown periods, and search windows.
+						Sensible defaults are already configured.
+					</p>
+					<a href="/settings" class="text-sm text-blue-400 hover:underline focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-gray-900">Go to Settings</a>
+				</div>
+			</li>
+		</ol>
+		<p class="mt-4 text-sm text-gray-300">
+			Tip: For the best upgrade results, configure your *arr applications with
+			<a
+				href="https://trash-guides.info/"
+				target="_blank"
+				rel="noopener noreferrer"
+				class="text-blue-400 hover:underline focus:outline-none focus:ring-2 focus:ring-blue-400"
+				aria-label="TRaSH-Guides quality profiles documentation (opens in new tab)"
+			>TRaSH-Guides</a>
+			quality profiles.
+		</p>
+	</div>
+}
+
+templ trashGuidesBanner(storageKey string) {
+	<div
+		data-storage-key={ storageKey }
+		x-data="{ dismissed: localStorage.getItem($el.dataset.storageKey) === '1' }"
+		x-show="!dismissed"
+		x-cloak
+		role="region"
+		aria-labelledby={ storageKey + "-title" }
+		class="mt-4 flex items-start gap-3 rounded-lg border border-blue-800 bg-blue-950/50 p-4"
+	>
+		<svg class="mt-0.5 h-5 w-5 shrink-0 text-blue-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+			<path fill-rule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0zm-7-4a1 1 0 1 1-2 0 1 1 0 0 1 2 0zM9 9a.75.75 0 0 0 0 1.5h.253a.25.25 0 0 1 .244.304l-.459 2.066A1.75 1.75 0 0 0 10.747 15H11a.75.75 0 0 0 0-1.5h-.253a.25.25 0 0 1-.244-.304l.459-2.066A1.75 1.75 0 0 0 9.253 9H9z" clip-rule="evenodd"></path>
+		</svg>
+		<div class="flex-1 text-sm text-gray-300">
+			<span id={ storageKey + "-title" } class="font-medium text-white">Quality profiles matter.</span>
+			Huntarr2 relies on quality profiles configured in your *arr applications
+			to decide what to upgrade. For the best results, use TRaSH-Guides quality
+			profiles and custom formats.
+			<a
+				href="https://trash-guides.info/"
+				target="_blank"
+				rel="noopener noreferrer"
+				class="text-blue-400 hover:underline focus:outline-none focus:ring-2 focus:ring-blue-400"
+				aria-label="Learn more at trash-guides.info (opens in new tab)"
+			>Learn more at trash-guides.info</a>
+		</div>
+		<button
+			data-storage-key={ storageKey }
+			@click="dismissed = true; localStorage.setItem($el.dataset.storageKey, '1')"
+			class="flex h-6 w-6 shrink-0 items-center justify-center text-gray-400 hover:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400"
+			aria-label="Dismiss quality profile notification"
+			type="button"
+		>
+			<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+				<path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22z"></path>
+			</svg>
+		</button>
+	</div>
+}
+
+templ schedulerPanel(data HomeData) {
+	<div
+		x-data={ schedulerPanelInit(data) }
+		x-init="init()"
+		class="mt-4 rounded-lg border border-gray-700 bg-gray-800 p-4"
+	>
+		<h3 class="font-medium text-white">Scheduler</h3>
+		<p x-show="connectionLost" x-cloak class="mt-1 text-xs text-yellow-400" aria-live="polite">Unable to reach server. Displayed data may be stale.</p>
+		<div class="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+			<div>
+				<p class="text-sm text-gray-300">Status</p>
+				<p class="mt-1 text-sm font-medium" :class="status.running ? 'text-green-400' : 'text-red-400'" x-text="status.running ? 'Running' : 'Stopped'">
+					if data.SchedulerRunning {
+						Running
+					} else {
+						Stopped
+					}
+				</p>
+			</div>
+			<div>
+				<p class="text-sm text-gray-300">Searches This Hour</p>
+				<p class="mt-1 text-sm font-medium text-white" x-text="status.searchesThisHour + ' / ' + status.hourlyLimit">
+					{ strconv.Itoa(data.SearchesThisHour) + " / " + strconv.Itoa(data.HourlyLimit) }
+				</p>
+			</div>
+		</div>
+		<template x-if="status.instances && status.instances.length > 0">
+			<div class="mt-3 overflow-hidden rounded-sm border border-gray-600">
+				<table class="w-full text-left text-sm">
+					<caption class="sr-only">Instance search schedule</caption>
+					<thead class="bg-gray-700 text-gray-300">
+						<tr>
+							<th scope="col" class="px-3 py-2">Instance</th>
+							<th scope="col" class="px-3 py-2">Next Search</th>
+							<th scope="col" class="px-3 py-2">Enabled</th>
+						</tr>
+					</thead>
+					<tbody class="divide-y divide-gray-600">
+						<template x-for="inst in status.instances" :key="inst.instanceId">
+							<tr class="bg-gray-800/50">
+								<td class="px-3 py-2 text-white" x-text="inst.instanceName || inst.instanceId"></td>
+								<td class="px-3 py-2 text-gray-300" x-text="new Date(inst.nextSearchAt).toLocaleTimeString()"></td>
+								<td class="px-3 py-2">
+									<span :class="inst.enabled ? 'text-green-400' : 'text-gray-400'" x-text="inst.enabled ? 'Yes' : 'No'"></span>
+								</td>
+							</tr>
+						</template>
+					</tbody>
+				</table>
+			</div>
+		</template>
+	</div>
+}

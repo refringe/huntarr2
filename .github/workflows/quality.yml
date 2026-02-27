@@ -1,0 +1,46 @@
+name: Quality
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Verify go.mod is tidy
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum
+
+      - name: Verify no local replace directive
+        run: |
+          if grep -q '^replace.*' go.mod; then
+            echo "ERROR: go.mod contains an active replace directive."
+            echo "Remove or comment it out before releasing."
+            exit 1
+          fi
+
+      - name: Verify generated templ files are up to date
+        run: |
+          go tool templ generate
+          git diff --exit-code -- '*.go'
+
+      - name: Lint
+        uses: golangci/golangci-lint-action@v9

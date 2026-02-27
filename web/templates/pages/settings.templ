@@ -1,0 +1,198 @@
+package pages
+
+import "github.com/refringe/huntarr2/web/templates/layouts"
+
+templ Settings(data SettingsData) {
+	@layouts.Base("Settings", "/settings") {
+		<div x-data="settingsManager()" x-init="init()" class="space-y-4">
+			<h1 class="text-2xl font-bold">Settings</h1>
+			<!-- Tab bar -->
+			<div
+				class="flex gap-1 border-b border-gray-700"
+				role="tablist"
+				aria-label="Settings tabs"
+				@keydown.arrow-right.prevent="focusAdjacentTab($event, 1)"
+				@keydown.arrow-left.prevent="focusAdjacentTab($event, -1)"
+				@keydown.home.prevent="focusAdjacentTab($event, 0, 'first')"
+				@keydown.end.prevent="focusAdjacentTab($event, 0, 'last')"
+			>
+				<button
+					id="tab-global"
+					@click="selectTab('global')"
+					role="tab"
+					aria-controls="settings-tabpanel"
+					:aria-selected="activeTab === 'global'"
+					:tabindex="activeTab === 'global' ? 0 : -1"
+					:class="activeTab === 'global' ? 'border-blue-500 text-white' : 'border-transparent text-gray-300 hover:text-white'"
+					class="border-b-2 px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-inset"
+				>
+					Global
+				</button>
+				for _, inst := range data.Instances {
+					<button
+						id={ "tab-" + inst.ID }
+						data-tab-id={ inst.ID }
+						@click="selectTab($el.dataset.tabId)"
+						role="tab"
+						aria-controls="settings-tabpanel"
+						:aria-selected="activeTab === $el.dataset.tabId"
+						:tabindex="activeTab === $el.dataset.tabId ? 0 : -1"
+						:class="activeTab === $el.dataset.tabId ? 'border-blue-500 text-white' : 'border-transparent text-gray-300 hover:text-white'"
+						class="border-b-2 px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-inset"
+					>
+						{ inst.Name }
+					</button>
+				}
+			</div>
+			<!-- Message banner -->
+			<div
+				x-show="message"
+				x-cloak
+				role="status"
+				aria-live="polite"
+				class="rounded-lg px-4 py-3 text-sm"
+				:class="messageType === 'success' ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'"
+				x-text="message"
+			></div>
+			<!-- Settings form -->
+			<div
+				id="settings-tabpanel"
+				role="tabpanel"
+				:aria-labelledby="'tab-' + activeTab"
+				:aria-busy="loading"
+				class="rounded-lg border border-gray-700 bg-gray-800 p-6"
+			>
+				<template x-if="loading">
+					<p class="text-gray-300" role="status" aria-live="polite">Loading settings&hellip;</p>
+				</template>
+				<template x-if="!loading">
+					<form @submit.prevent="saveSettings()" class="space-y-5">
+						<div>
+							<label for="setting-batch-size" class="block text-sm text-gray-300">Batch Size</label>
+							<input
+								id="setting-batch-size"
+								x-model.number="form.batchSize"
+								type="number"
+								min="1"
+								aria-describedby="setting-batch-size-help"
+								class="mt-1 w-full max-w-xs rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400/50"
+							/>
+							<p id="setting-batch-size-help" class="mt-1 text-xs text-gray-300">Number of items to search per cycle.</p>
+						</div>
+						<div>
+							<label for="setting-cooldown" class="block text-sm text-gray-300">Cooldown Period</label>
+							<input
+								id="setting-cooldown"
+								x-model="form.cooldownPeriod"
+								type="text"
+								placeholder="24h"
+								aria-describedby="setting-cooldown-help"
+								:aria-invalid="errors.cooldownPeriod ? 'true' : null"
+								:class="errors.cooldownPeriod ? 'border-red-500' : 'border-gray-600'"
+								class="mt-1 w-full max-w-xs rounded-md border bg-gray-700 px-3 py-2 text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400/50"
+							/>
+							<p x-show="errors.cooldownPeriod" x-cloak class="mt-1 text-xs text-red-400" x-text="errors.cooldownPeriod" role="alert"></p>
+							<p id="setting-cooldown-help" class="mt-1 text-xs text-gray-300">Time before re-searching the same item (e.g. 24h, 12h30m).</p>
+						</div>
+						<div class="grid gap-4 sm:grid-cols-2">
+							<div>
+								<label for="setting-window-start" class="block text-sm text-gray-300">Search Window Start</label>
+								<input
+									id="setting-window-start"
+									x-model="form.searchWindowStart"
+									type="text"
+									placeholder="HH:MM"
+									aria-describedby="setting-window-help"
+									:aria-invalid="errors.searchWindowStart ? 'true' : null"
+									:class="errors.searchWindowStart ? 'border-red-500' : 'border-gray-600'"
+									class="mt-1 w-full rounded-md border bg-gray-700 px-3 py-2 text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400/50"
+								/>
+								<p x-show="errors.searchWindowStart" x-cloak class="mt-1 text-xs text-red-400" x-text="errors.searchWindowStart" role="alert"></p>
+							</div>
+							<div>
+								<label for="setting-window-end" class="block text-sm text-gray-300">Search Window End</label>
+								<input
+									id="setting-window-end"
+									x-model="form.searchWindowEnd"
+									type="text"
+									placeholder="HH:MM"
+									aria-describedby="setting-window-help"
+									:aria-invalid="errors.searchWindowEnd ? 'true' : null"
+									:class="errors.searchWindowEnd ? 'border-red-500' : 'border-gray-600'"
+									class="mt-1 w-full rounded-md border bg-gray-700 px-3 py-2 text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400/50"
+								/>
+								<p x-show="errors.searchWindowEnd" x-cloak class="mt-1 text-xs text-red-400" x-text="errors.searchWindowEnd" role="alert"></p>
+							</div>
+						</div>
+						<p id="setting-window-help" class="text-xs text-gray-300">Leave both empty for no restriction. Supports cross-midnight windows.</p>
+						<div>
+							<label for="setting-interval" class="block text-sm text-gray-300">Search Interval</label>
+							<input
+								id="setting-interval"
+								x-model="form.searchInterval"
+								type="text"
+								placeholder="6h"
+								aria-describedby="setting-interval-help"
+								:aria-invalid="errors.searchInterval ? 'true' : null"
+								:class="errors.searchInterval ? 'border-red-500' : 'border-gray-600'"
+								class="mt-1 w-full max-w-xs rounded-md border bg-gray-700 px-3 py-2 text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400/50"
+							/>
+							<p x-show="errors.searchInterval" x-cloak class="mt-1 text-xs text-red-400" x-text="errors.searchInterval" role="alert"></p>
+							<p id="setting-interval-help" class="mt-1 text-xs text-gray-300">Base interval between search cycles (e.g. 6h, 1h30m).</p>
+						</div>
+						<template x-if="activeTab === 'global'">
+							<div>
+								<label for="setting-search-limit" class="block text-sm text-gray-300">Search Limit</label>
+								<input
+									id="setting-search-limit"
+									x-model.number="form.searchLimit"
+									type="number"
+									min="1"
+									aria-describedby="setting-search-limit-help"
+									class="mt-1 w-full max-w-xs rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400/50"
+								/>
+								<p id="setting-search-limit-help" class="mt-1 text-xs text-gray-300">Maximum searches per hour across all instances.</p>
+							</div>
+						</template>
+						<template x-if="activeTab !== 'global'">
+							<div class="flex items-center gap-3">
+								<button
+									type="button"
+									@click="form.enabled = !form.enabled"
+									role="switch"
+									:aria-checked="form.enabled"
+									aria-label="Enable or disable search automation for this instance"
+									:class="form.enabled ? 'bg-blue-600' : 'bg-gray-600'"
+									class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-gray-800"
+								>
+									<span :class="form.enabled ? 'translate-x-6' : 'translate-x-1'" class="inline-block h-4 w-4 rounded-full bg-white transition-transform"></span>
+								</button>
+								<span class="text-sm text-gray-300" x-text="form.enabled ? 'Enabled' : 'Disabled'"></span>
+							</div>
+						</template>
+						<div class="flex items-center gap-3 pt-2">
+							<button
+								type="submit"
+								class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-gray-800"
+								:disabled="saving"
+							>
+								<span x-show="!saving">Save</span>
+								<span x-show="saving" x-cloak>Saving&hellip;</span>
+							</button>
+							<template x-if="activeTab !== 'global'">
+								<button
+									type="button"
+									@click="resetToDefaults()"
+									class="rounded-md bg-gray-700 px-4 py-2 text-sm text-gray-300 hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-gray-800"
+								>
+									Reset to Defaults
+								</button>
+							</template>
+						</div>
+					</form>
+				</template>
+			</div>
+		</div>
+		<script src="/static/js/settings.js"></script>
+	}
+}

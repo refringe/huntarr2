@@ -1,0 +1,47 @@
+package layouts
+
+templ Base(title, currentPath string) {
+	<!DOCTYPE html>
+	<html lang="en-GB" class="h-full">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<title>{ title } | Huntarr2</title>
+			<!-- Tailwind v4 browser JIT: generates CSS at page load. Acceptable
+			     for a self-hosted, single-user tool and avoids adding Node.js to
+			     the build pipeline. Alpine.js requires unsafe-eval in CSP
+			     regardless, so pre-compiling would not tighten the policy. -->
+			<script src="/static/js/tailwind-4.2.1.js"></script>
+			<script defer src="/static/js/alpine-focus-3.15.8.min.js"></script>
+			<script defer src="/static/js/alpine-3.15.8.min.js"></script>
+			<style>
+				[x-cloak] { display: none !important; }
+				.sr-only {
+					position: absolute;
+					width: 1px;
+					height: 1px;
+					padding: 0;
+					margin: -1px;
+					overflow: hidden;
+					clip: rect(0, 0, 0, 0);
+					white-space: nowrap;
+					border-width: 0;
+				}
+			</style>
+		</head>
+		<body class="h-full bg-gray-900 text-gray-100">
+			<a
+				href="#main-content"
+				class="sr-only bg-blue-600 px-4 py-2 text-white focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-[100] focus:rounded-md"
+			>
+				Skip to main content
+			</a>
+			<div class="flex h-full">
+				@Sidebar(currentPath)
+				<main id="main-content" class="flex-1 overflow-y-auto p-8">
+					{ children... }
+				</main>
+			</div>
+		</body>
+	</html>
+}

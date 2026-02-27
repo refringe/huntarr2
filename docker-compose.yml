@@ -1,0 +1,28 @@
+services:
+  huntarr2:
+    build: .
+    ports:
+      - '${PORT:-9706}:9706'
+    volumes:
+      - huntarr2_config:/config
+    environment:
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+      TZ: ${TZ:-UTC}
+      # AUTH_USERNAME: ${AUTH_USERNAME:-}
+      # AUTH_PASSWORD: ${AUTH_PASSWORD:-}
+    healthcheck:
+      test: ['CMD', 'curl', '-fsS', 'http://localhost:9706/api/health']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
+    restart: unless-stopped
+
+volumes:
+  huntarr2_config:

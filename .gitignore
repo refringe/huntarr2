@@ -1,0 +1,29 @@
+# Build output
+bin/
+/huntarr2
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test output
+coverage.out
+*.test
+
+# Environment
+.env
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Node (Prettier)
+node_modules/
+
+# OS
+.DS_Store
+Thumbs.db

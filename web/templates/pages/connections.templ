@@ -1,0 +1,233 @@
+package pages
+
+import "github.com/refringe/huntarr2/web/templates/layouts"
+
+var appTypeSections = []struct {
+	Type  string
+	Label string
+}{
+	{"sonarr", "Sonarr"},
+	{"radarr", "Radarr"},
+	{"lidarr", "Lidarr"},
+	{"whisparr", "Whisparr"},
+}
+
+templ Connections(data ConnectionsData) {
+	@layouts.Base("Connections", "/connections") {
+		<div x-data="connectionManager()" x-init="init()" class="space-y-8">
+			<div class="flex items-center justify-between">
+				<h1 class="text-2xl font-bold">Connections</h1>
+			</div>
+			@trashGuidesBanner("huntarr2:dismiss:trash-guides-connections")
+			for _, section := range appTypeSections {
+				@connectionSection(section.Type, section.Label, data)
+			}
+			@connectionModal()
+			@deleteModal()
+		</div>
+		<script src="/static/js/connections.js"></script>
+	}
+}
+
+templ connectionSection(appType, label string, data ConnectionsData) {
+	<section data-app-type={ appType }>
+		<div class="flex items-center justify-between">
+			<h2 class="text-lg font-semibold text-white">{ label }</h2>
+			<button
+				data-app-type={ appType }
+				@click="openAdd($el.dataset.appType)"
+				class="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-gray-900"
+			>
+				Add { label }
+			</button>
+		</div>
+		<div class="mt-3 space-y-2">
+			for _, inst := range data.Instances {
+				if inst.AppType == appType {
+					@connectionCard(inst)
+				}
+			}
+		</div>
+	</section>
+}
+
+templ connectionCard(inst ConnectionInstance) {
+	<div
+		class="flex items-center justify-between rounded-lg border border-gray-700 bg-gray-800 p-4"
+		data-instance-id={ inst.ID }
+		data-instance-name={ inst.Name }
+	>
+		<div>
+			<p class="font-medium text-white">{ inst.Name }</p>
+			<p class="text-sm text-gray-300">{ inst.BaseURL }</p>
+		</div>
+		<div class="flex items-center gap-2">
+			<span
+				x-show="testResults[$el.closest('[data-instance-id]').dataset.instanceId]"
+				x-cloak
+				role="status"
+				aria-live="assertive"
+				aria-atomic="true"
+				class="text-sm"
+				:class="testResults[$el.closest('[data-instance-id]').dataset.instanceId]?.ok ? 'text-green-400' : 'text-red-400'"
+				x-text="testResults[$el.closest('[data-instance-id]').dataset.instanceId]?.message"
+			></span>
+			<button
+				@click="testInstance($el.closest('[data-instance-id]').dataset.instanceId)"
+				:aria-disabled="testingId === $el.closest('[data-instance-id]').dataset.instanceId"
+				aria-label={ "Test " + inst.Name }
+				class="rounded-md bg-gray-700 px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-gray-900"
+			>
+				<span x-show="testingId !== $el.closest('[data-instance-id]').dataset.instanceId">Test</span>
+				<span x-show="testingId === $el.closest('[data-instance-id]').dataset.instanceId" x-cloak>Testing&hellip;</span>
+			</button>
+			<button
+				@click="openEdit($el.closest('[data-instance-id]').dataset.instanceId)"
+				aria-label={ "Edit " + inst.Name }
+				class="rounded-md bg-gray-700 px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-gray-900"
+			>
+				Edit
+			</button>
+			<button
+				@click="confirmDeleteFromEl($el.closest('[data-instance-id]'))"
+				aria-label={ "Delete " + inst.Name }
+				class="rounded-md bg-red-900 px-3 py-1.5 text-sm text-red-300 hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2 focus:ring-offset-gray-900"
+			>
+				Delete
+			</button>
+		</div>
+	</div>
+}
+
+templ connectionModal() {
+	<div
+		x-show="showModal"
+		x-cloak
+		class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+		role="dialog"
+		aria-modal="true"
+		aria-labelledby="connection-modal-title"
+		@keydown.escape.window="showModal && (showModal = false)"
+	>
+		<div
+			x-trap.inert.noscroll="showModal"
+			@click.outside="showModal = false"
+			class="w-full max-w-md rounded-lg border border-gray-700 bg-gray-800 p-6"
+		>
+			<h3 id="connection-modal-title" class="text-lg font-semibold text-white" x-text="editing ? 'Edit Instance' : 'Add Instance'"></h3>
+			<form @submit.prevent="saveInstance" class="mt-4 space-y-4">
+				<div>
+					<label for="conn-name" class="block text-sm text-gray-300">Name</label>
+					<input
+						id="conn-name"
+						x-model="form.name"
+						type="text"
+						required
+						class="mt-1 w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400/50"
+					/>
+				</div>
+				<div x-show="!editing">
+					<label for="conn-app-type" class="block text-sm text-gray-300">Application Type</label>
+					<select
+						id="conn-app-type"
+						x-model="form.appType"
+						class="mt-1 w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400/50"
+					>
+						<option value="sonarr">Sonarr</option>
+						<option value="radarr">Radarr</option>
+						<option value="lidarr">Lidarr</option>
+						<option value="whisparr">Whisparr</option>
+					</select>
+				</div>
+				<div>
+					<label for="conn-base-url" class="block text-sm text-gray-300">Base URL</label>
+					<input
+						id="conn-base-url"
+						x-model="form.baseUrl"
+						type="url"
+						required
+						:placeholder="placeholderUrl"
+						class="mt-1 w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400/50"
+					/>
+				</div>
+				<div>
+					<label for="conn-api-key" class="block text-sm text-gray-300">API Key</label>
+					<input
+						id="conn-api-key"
+						x-model="form.apiKey"
+						type="password"
+						required
+						class="mt-1 w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400/50"
+					/>
+				</div>
+				<div>
+					<label for="conn-timeout" class="block text-sm text-gray-300">Timeout (ms)</label>
+					<input
+						id="conn-timeout"
+						x-model.number="form.timeoutMs"
+						type="number"
+						min="1000"
+						step="1000"
+						class="mt-1 w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400/50"
+					/>
+				</div>
+				<div
+					x-show="formError"
+					role="alert"
+					aria-live="polite"
+					class="text-sm text-red-400"
+					x-text="formError"
+				></div>
+				<div class="flex justify-end gap-3">
+					<button
+						@click="showModal = false"
+						type="button"
+						class="rounded-md bg-gray-700 px-4 py-2 text-sm text-gray-300 hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-gray-800"
+					>
+						Cancel
+					</button>
+					<button
+						type="submit"
+						class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-gray-800"
+						x-text="editing ? 'Save' : 'Add'"
+					></button>
+				</div>
+			</form>
+		</div>
+	</div>
+}
+
+templ deleteModal() {
+	<div
+		x-show="showDeleteModal"
+		x-cloak
+		class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+		role="dialog"
+		aria-modal="true"
+		aria-labelledby="delete-modal-title"
+		@keydown.escape.window="showDeleteModal && (showDeleteModal = false)"
+	>
+		<div
+			x-trap.inert.noscroll="showDeleteModal"
+			@click.outside="showDeleteModal = false"
+			class="w-full max-w-sm rounded-lg border border-gray-700 bg-gray-800 p-6"
+		>
+			<h3 id="delete-modal-title" class="text-lg font-semibold text-white">Delete Instance</h3>
+			<p class="mt-2 text-gray-300">Are you sure you want to delete <span class="font-medium text-white" x-text="deleteName"></span>?</p>
+			<div class="mt-4 flex justify-end gap-3">
+				<button
+					@click="showDeleteModal = false"
+					class="rounded-md bg-gray-700 px-4 py-2 text-sm text-gray-300 hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-gray-800"
+				>
+					Cancel
+				</button>
+				<button
+					@click="deleteInstance"
+					class="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-500 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2 focus:ring-offset-gray-800"
+				>
+					Delete
+				</button>
+			</div>
+		</div>
+	</div>
+}
