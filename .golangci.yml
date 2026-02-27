@@ -1,0 +1,81 @@
+version: '2'
+
+linters:
+  default: none
+  enable:
+    - bodyclose
+    - copyloopvar
+    - depguard
+    - durationcheck
+    - errcheck
+    - errorlint
+    - exhaustive
+    - forbidigo
+    - goconst
+    - gocritic
+    - gosec
+    - govet
+    - ineffassign
+    - misspell
+    - nakedret
+    - nilerr
+    - nilnil
+    - noctx
+    - nolintlint
+    - revive
+    - sqlclosecheck
+    - staticcheck
+    - unconvert
+    - unparam
+    - unused
+    - whitespace
+  settings:
+    depguard:
+      rules:
+        main:
+          deny:
+            - pkg: log
+              desc: 'use github.com/rs/zerolog instead of the standard log package'
+    forbidigo:
+      forbid:
+        - pattern: "^fmt\\.Print"
+          msg: 'use zerolog for output instead of fmt.Print*'
+    goconst:
+      min-occurrences: 3
+    gosec:
+      excludes:
+        - G104
+        - G117
+        - G704
+        - G705
+    misspell:
+      locale: UK
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+    revive:
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: error-return
+        - name: exported
+        - name: increment-decrement
+        - name: receiver-naming
+        - name: var-declaration
+        - name: unexported-return
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - bodyclose
+          - goconst
+          - gosec
+          - nilnil
+
+formatters:
+  enable:
+    - gofmt
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

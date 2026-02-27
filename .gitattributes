@@ -1,0 +1,4 @@
+# Force LF line endings in the repository. Individual developers may
+# use whatever line endings their OS prefers in the working tree, but
+# the canonical form stored in Git is always LF.
+* text=auto eol=lf

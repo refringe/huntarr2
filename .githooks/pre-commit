@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+#
+# Pre-commit hook that auto-fixes formatting and code generation issues.
+# Install with: make hooks
+
+set -euo pipefail
+
+# Collect staged file paths (NUL-delimited for safety).
+staged_files() {
+    git diff --cached --name-only --diff-filter=ACM -z
+}
+
+# Re-stage files that were modified by a formatter.
+restage() {
+    local file
+    for file in "$@"; do
+        [ -f "$file" ] && git add "$file"
+    done
+}
+
+has_staged() {
+    local pattern="$1"
+    staged_files | tr '\0' '\n' | grep -qE "$pattern"
+}
+
+# ── gofmt ────────────────────────────────────────────────────────────────────
+
+if has_staged '\.go$'; then
+    go_files=()
+    while IFS= read -r -d '' f; do
+        # Skip generated templ files; templ generate handles those.
+        [[ "$f" == *_templ.go ]] && continue
+        [[ "$f" == *.go ]] && go_files+=("$f")
+    done < <(staged_files)
+
+    if [ ${#go_files[@]} -gt 0 ]; then
+        if command -v gofmt >/dev/null 2>&1; then
+            gofmt -w "${go_files[@]}"
+            restage "${go_files[@]}"
+        else
+            echo "warning: gofmt not found, skipping format check" >&2
+        fi
+    fi
+fi
+
+# ── templ generate ───────────────────────────────────────────────────────────
+
+if has_staged '\.templ$'; then
+    if go tool templ version >/dev/null 2>&1; then
+        go tool templ generate
+
+        # Re-stage any _templ.go files whose source .templ was staged.
+        while IFS= read -r -d '' f; do
+            [[ "$f" == *.templ ]] || continue
+            generated="${f%.templ}_templ.go"
+            [ -f "$generated" ] && git add "$generated"
+        done < <(staged_files)
+    else
+        echo "warning: templ not found, skipping template generation" >&2
+    fi
+fi
+
+# ── prettier ─────────────────────────────────────────────────────────────────
+
+if has_staged '\.(js|json|yml)$'; then
+    prettier_files=()
+    while IFS= read -r -d '' f; do
+        [[ "$f" =~ \.(js|json|yml)$ ]] && prettier_files+=("$f")
+    done < <(staged_files)
+
+    if [ ${#prettier_files[@]} -gt 0 ]; then
+        if command -v npx >/dev/null 2>&1; then
+            npx --yes prettier@3 --write "${prettier_files[@]}"
+            restage "${prettier_files[@]}"
+        else
+            echo "warning: npx not found, skipping prettier" >&2
+        fi
+    fi
+fi
+
+# ── go mod tidy ──────────────────────────────────────────────────────────────
+
+if has_staged '\.go$' || has_staged 'go\.(mod|sum)$'; then
+    if command -v go >/dev/null 2>&1; then
+        go mod tidy
+        restage go.mod go.sum
+    else
+        echo "warning: go not found, skipping mod tidy" >&2
+    fi
+fi

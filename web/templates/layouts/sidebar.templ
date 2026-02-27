@@ -1,0 +1,34 @@
+package layouts
+
+templ Sidebar(currentPath string) {
+	<aside aria-label="Sidebar" class="flex w-64 flex-col bg-brand-900 border-r border-brand-700">
+		<div class="flex items-center px-4 py-4">
+			<img src="/static/images/logo.png" alt="Huntarr2" class="h-12 w-auto"/>
+		</div>
+		<nav class="flex-1 space-y-1 px-3 pb-4" aria-label="Main navigation">
+			@navLink("/", "Home", currentPath)
+			@navLink("/connections", "Connections", currentPath)
+			@navLink("/settings", "Settings", currentPath)
+			@navLink("/logs", "Logs", currentPath)
+		</nav>
+	</aside>
+}
+
+templ navLink(href, label, currentPath string) {
+	if href == currentPath {
+		<a
+			href={ templ.SafeURL(href) }
+			class="block rounded-md bg-brand-700 px-3 py-2 text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-accent-600"
+			aria-current="page"
+		>
+			{ label }
+		</a>
+	} else {
+		<a
+			href={ templ.SafeURL(href) }
+			class="block rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-brand-700 hover:text-white focus:outline-none focus:ring-2 focus:ring-accent-600"
+		>
+			{ label }
+		</a>
+	}
+}

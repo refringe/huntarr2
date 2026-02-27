@@ -1,0 +1,14 @@
+.github
+.idea
+.vscode
+bin/
+coverage.out
+*.test
+*.md
+LICENSE
+Makefile
+docker-compose.yml
+.env
+.env.*
+.gitignore
+.dockerignore
