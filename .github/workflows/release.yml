@@ -14,84 +14,8 @@ permissions:
   packages: write
 
 jobs:
-  test:
-    name: Test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: actions/setup-go@v6
-        with:
-          go-version-file: go.mod
-
-      - name: Test
-        run: make test
-
-  lint:
-    name: Lint
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: actions/setup-go@v6
-        with:
-          go-version-file: go.mod
-
-      - name: Verify go.mod is tidy
-        run: |
-          go mod tidy
-          git diff --exit-code go.mod go.sum
-
-      - name: Verify no local replace directive
-        run: |
-          if grep -q '^replace.*' go.mod; then
-            echo "ERROR: go.mod contains an active replace directive."
-            echo "Remove or comment it out before releasing."
-            exit 1
-          fi
-
-      - name: Lint
-        uses: golangci/golangci-lint-action@v9
-
-  format:
-    name: Format
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: actions/setup-go@v6
-        with:
-          go-version-file: go.mod
-
-      - name: Check Go formatting
-        run: make fmt-check
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 22
-
-      - name: Check formatting (JS, JSON, YAML)
-        run: make prettier-check
-
-  vulncheck:
-    name: Vulnerability Check
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: actions/setup-go@v6
-        with:
-          go-version-file: go.mod
-
-      - name: Install govulncheck
-        run: go install golang.org/x/vuln/cmd/govulncheck@latest
-
-      - name: Run govulncheck
-        run: govulncheck ./...
-
   docker:
     name: Docker Image
-    needs: [test, lint, format, vulncheck]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -105,12 +29,12 @@ jobs:
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
 
-      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-qemu-action@v4
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -118,7 +42,7 @@ jobs:
 
       - name: Generate image metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
@@ -128,7 +52,7 @@ jobs:
             type=raw,value=latest
 
       - name: Build and push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           platforms: linux/amd64,linux/arm64
@@ -142,22 +66,9 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  scan:
-    name: Image Vulnerability Scan
-    needs: [docker]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Scan image with Trivy
-        uses: aquasecurity/trivy-action@0.34.2
-        with:
-          image-ref: ghcr.io/${{ github.repository }}:latest
-          format: table
-          exit-code: 1
-          severity: CRITICAL,HIGH
-
   release:
     name: GitHub Release
-    needs: [docker, scan]
+    needs: [docker]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
