@@ -78,7 +78,7 @@ func TestHandleGetSettingsGlobal(t *testing.T) {
 	svc := &fakeSettingsService{resolved: settings.Defaults()}
 	handler := NewRouter(nil, nil, svc, nil, nil).Handler()
 
-	req := httptest.NewRequest(http.MethodGet, "/settings", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/settings", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -111,7 +111,7 @@ func TestHandleGetSettingsPerInstance(t *testing.T) {
 	handler := NewRouter(nil, nil, svc, nil, nil).Handler()
 
 	id := uuid.New()
-	req := httptest.NewRequest(http.MethodGet, "/settings?instanceId="+id.String(), nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/settings?instanceId="+id.String(), nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -125,7 +125,7 @@ func TestHandleGetSettingsBadUUID(t *testing.T) {
 	svc := &fakeSettingsService{resolved: settings.Defaults()}
 	handler := NewRouter(nil, nil, svc, nil, nil).Handler()
 
-	req := httptest.NewRequest(http.MethodGet, "/settings?instanceId=not-a-uuid", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/settings?instanceId=not-a-uuid", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -140,7 +140,7 @@ func TestHandleUpdateSettings(t *testing.T) {
 	handler := NewRouter(nil, nil, svc, nil, nil).Handler()
 
 	body := `{"settings":[{"key":"batch_size","value":"20"}]}`
-	req := httptest.NewRequest(http.MethodPut, "/settings", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/settings", bytes.NewBufferString(body))
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -165,7 +165,7 @@ func TestHandleUpdateSettingsInvalidKey(t *testing.T) {
 	handler := NewRouter(nil, nil, svc, nil, nil).Handler()
 
 	body := `{"settings":[{"key":"bad_key","value":"x"}]}`
-	req := httptest.NewRequest(http.MethodPut, "/settings", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/settings", bytes.NewBufferString(body))
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -178,7 +178,7 @@ func TestHandleUpdateSettingsInvalidBody(t *testing.T) {
 	t.Parallel()
 	handler := NewRouter(nil, nil, &fakeSettingsService{}, nil, nil).Handler()
 
-	req := httptest.NewRequest(http.MethodPut, "/settings", bytes.NewBufferString("not json"))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/settings", bytes.NewBufferString("not json"))
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -193,7 +193,7 @@ func TestHandleUpdateSettingsInternalError(t *testing.T) {
 	handler := NewRouter(nil, nil, svc, nil, nil).Handler()
 
 	body := `{"settings":[{"key":"batch_size","value":"20"}]}`
-	req := httptest.NewRequest(http.MethodPut, "/settings", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/settings", bytes.NewBufferString(body))
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -209,7 +209,7 @@ func TestHandleDeleteSettings(t *testing.T) {
 
 	id := uuid.New()
 	body := `{"keys":["batch_size","cooldown_period"]}`
-	req := httptest.NewRequest(http.MethodDelete, "/settings?instanceId="+id.String(),
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/settings?instanceId="+id.String(),
 		bytes.NewBufferString(body))
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
@@ -237,7 +237,7 @@ func TestHandleDeleteSettingsEmptyKeys(t *testing.T) {
 	handler := NewRouter(nil, nil, &fakeSettingsService{}, nil, nil).Handler()
 
 	body := `{"keys":[]}`
-	req := httptest.NewRequest(http.MethodDelete, "/settings",
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/settings",
 		bytes.NewBufferString(body))
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
@@ -253,7 +253,7 @@ func TestHandleDeleteSettingsUnknownKey(t *testing.T) {
 	handler := NewRouter(nil, nil, svc, nil, nil).Handler()
 
 	body := `{"keys":["bad_key"]}`
-	req := httptest.NewRequest(http.MethodDelete, "/settings",
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/settings",
 		bytes.NewBufferString(body))
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)

@@ -18,7 +18,7 @@ func TestRequestLoggingPassesThrough(t *testing.T) {
 
 	handler := withRequestLogging(inner)
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 
 	handler.ServeHTTP(w, req)
@@ -42,7 +42,7 @@ func TestPanicRecoveryReturns500(t *testing.T) {
 
 	handler := withPanicRecovery(inner)
 
-	req := httptest.NewRequest(http.MethodGet, "/boom", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/boom", nil)
 	w := httptest.NewRecorder()
 
 	handler.ServeHTTP(w, req)
@@ -60,7 +60,7 @@ func TestBasicAuthDisabledPassesThrough(t *testing.T) {
 
 	handler := withBasicAuth(inner, "", "")
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 
 	handler.ServeHTTP(w, req)
@@ -78,7 +78,7 @@ func TestBasicAuthNoCreds(t *testing.T) {
 
 	handler := withBasicAuth(inner, "admin", "secret")
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 
 	handler.ServeHTTP(w, req)
@@ -99,7 +99,7 @@ func TestBasicAuthWrongCreds(t *testing.T) {
 
 	handler := withBasicAuth(inner, "admin", "secret")
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
 	req.SetBasicAuth("admin", "wrong")
 	w := httptest.NewRecorder()
 
@@ -119,7 +119,7 @@ func TestBasicAuthCorrectCreds(t *testing.T) {
 
 	handler := withBasicAuth(inner, "admin", "secret")
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
 	req.SetBasicAuth("admin", "secret")
 	w := httptest.NewRecorder()
 
@@ -142,7 +142,7 @@ func TestBasicAuthHealthExempt(t *testing.T) {
 
 	handler := withBasicAuth(inner, "admin", "secret")
 
-	req := httptest.NewRequest(http.MethodGet, "/api/health", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/health", nil)
 	w := httptest.NewRecorder()
 
 	handler.ServeHTTP(w, req)
@@ -160,7 +160,7 @@ func TestBasicAuthWrongUsernameOnly(t *testing.T) {
 
 	handler := withBasicAuth(inner, "admin", "secret")
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
 	req.SetBasicAuth("wrong", "secret")
 	w := httptest.NewRecorder()
 
@@ -179,7 +179,7 @@ func TestBasicAuthWrongPasswordOnly(t *testing.T) {
 
 	handler := withBasicAuth(inner, "admin", "secret")
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
 	req.SetBasicAuth("admin", "wrong")
 	w := httptest.NewRecorder()
 
@@ -204,7 +204,7 @@ func TestMaxBodySizeRejectsOversized(t *testing.T) {
 	handler := withMaxBodySize(inner)
 
 	oversized := strings.Repeat("a", maxRequestBodyBytes+1)
-	req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(oversized))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/test", strings.NewReader(oversized))
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -226,7 +226,7 @@ func TestMaxBodySizeAllowsNormalPayload(t *testing.T) {
 
 	handler := withMaxBodySize(inner)
 
-	req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(`{"name":"test"}`))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/test", strings.NewReader(`{"name":"test"}`))
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -243,7 +243,7 @@ func TestSecurityHeadersPresent(t *testing.T) {
 
 	handler := withSecurityHeaders(inner)
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -272,7 +272,7 @@ func TestStaticCacheHeadersVersionedFile(t *testing.T) {
 
 	handler := withStaticCacheHeaders(inner)
 
-	req := httptest.NewRequest(http.MethodGet, "/static/js/alpine-3.15.8.min.js", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/static/js/alpine-3.15.8.min.js", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -290,7 +290,7 @@ func TestStaticCacheHeadersAppFile(t *testing.T) {
 
 	handler := withStaticCacheHeaders(inner)
 
-	req := httptest.NewRequest(http.MethodGet, "/static/js/logs.js", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/static/js/logs.js", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -307,7 +307,7 @@ func TestStaticCacheHeadersOmittedOn404(t *testing.T) {
 
 	handler := withStaticCacheHeaders(inner)
 
-	req := httptest.NewRequest(http.MethodGet, "/static/js/nonexistent.js", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/static/js/nonexistent.js", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -327,7 +327,7 @@ func TestBasicAuthReturnsJSON(t *testing.T) {
 
 	handler := withBasicAuth(inner, "admin", "secret")
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 

@@ -40,7 +40,7 @@ func TestHandleSchedulerStatus(t *testing.T) {
 
 	handler := NewRouter(nil, nil, nil, nil, fake).Handler()
 
-	req := httptest.NewRequest(http.MethodGet, "/scheduler/status", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/scheduler/status", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 

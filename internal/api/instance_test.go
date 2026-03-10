@@ -90,7 +90,7 @@ func TestHandleListInstances(t *testing.T) {
 	svc.seed(uuid.New())
 	handler := NewRouter(svc, nil, nil, nil, nil).Handler()
 
-	req := httptest.NewRequest(http.MethodGet, "/instances", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/instances", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -112,7 +112,7 @@ func TestHandleCreateInstanceValid(t *testing.T) {
 	handler := NewRouter(newFakeInstanceService(), nil, nil, nil, nil).Handler()
 
 	body := `{"name":"My Sonarr","appType":"sonarr","baseUrl":"http://sonarr:8989","apiKey":"abc123"}`
-	req := httptest.NewRequest(http.MethodPost, "/instances", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/instances", bytes.NewBufferString(body))
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -133,7 +133,7 @@ func TestHandleCreateInstanceInvalid(t *testing.T) {
 	t.Parallel()
 	handler := NewRouter(newFakeInstanceService(), nil, nil, nil, nil).Handler()
 
-	req := httptest.NewRequest(http.MethodPost, "/instances", bytes.NewBufferString(`not json`))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/instances", bytes.NewBufferString(`not json`))
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -149,7 +149,7 @@ func TestHandleGetInstanceFound(t *testing.T) {
 	svc.seed(id)
 	handler := NewRouter(svc, nil, nil, nil, nil).Handler()
 
-	req := httptest.NewRequest(http.MethodGet, "/instances/"+id.String(), nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/instances/"+id.String(), nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -162,7 +162,7 @@ func TestHandleGetInstanceNotFound(t *testing.T) {
 	t.Parallel()
 	handler := NewRouter(newFakeInstanceService(), nil, nil, nil, nil).Handler()
 
-	req := httptest.NewRequest(http.MethodGet, "/instances/"+uuid.New().String(), nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/instances/"+uuid.New().String(), nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -175,7 +175,7 @@ func TestHandleGetInstanceBadUUID(t *testing.T) {
 	t.Parallel()
 	handler := NewRouter(newFakeInstanceService(), nil, nil, nil, nil).Handler()
 
-	req := httptest.NewRequest(http.MethodGet, "/instances/not-a-uuid", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/instances/not-a-uuid", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -192,7 +192,7 @@ func TestHandleUpdateInstance(t *testing.T) {
 	handler := NewRouter(svc, nil, nil, nil, nil).Handler()
 
 	body := `{"name":"Renamed","baseUrl":"https://sonarr.example.com","apiKey":"newkey"}`
-	req := httptest.NewRequest(http.MethodPut, "/instances/"+id.String(), bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/instances/"+id.String(), bytes.NewBufferString(body))
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -217,7 +217,7 @@ func TestHandleUpdateInstanceNotFound(t *testing.T) {
 	handler := NewRouter(newFakeInstanceService(), nil, nil, nil, nil).Handler()
 
 	body := `{"name":"Ghost","baseUrl":"http://localhost:8989","apiKey":"key"}`
-	req := httptest.NewRequest(http.MethodPut, "/instances/"+uuid.New().String(), bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/instances/"+uuid.New().String(), bytes.NewBufferString(body))
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -233,7 +233,7 @@ func TestHandleDeleteInstance(t *testing.T) {
 	svc.seed(id)
 	handler := NewRouter(svc, nil, nil, nil, nil).Handler()
 
-	req := httptest.NewRequest(http.MethodDelete, "/instances/"+id.String(), nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/instances/"+id.String(), nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -246,7 +246,7 @@ func TestHandleDeleteInstanceNotFound(t *testing.T) {
 	t.Parallel()
 	handler := NewRouter(newFakeInstanceService(), nil, nil, nil, nil).Handler()
 
-	req := httptest.NewRequest(http.MethodDelete, "/instances/"+uuid.New().String(), nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/instances/"+uuid.New().String(), nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -264,7 +264,7 @@ func TestHandleTestInstanceSuccess(t *testing.T) {
 	arrSvc := &fakeArrService{testErr: nil}
 	handler := NewRouter(svc, arrSvc, nil, nil, nil).Handler()
 
-	req := httptest.NewRequest(http.MethodPost, "/instances/"+id.String()+"/test", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/instances/"+id.String()+"/test", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -286,7 +286,7 @@ func TestHandleTestInstanceNotFound(t *testing.T) {
 	arrSvc := &fakeArrService{}
 	handler := NewRouter(newFakeInstanceService(), arrSvc, nil, nil, nil).Handler()
 
-	req := httptest.NewRequest(http.MethodPost, "/instances/"+uuid.New().String()+"/test", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/instances/"+uuid.New().String()+"/test", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -349,7 +349,7 @@ func TestHandleTestInstanceAppTypes(t *testing.T) {
 			arrSvc := &fakeArrService{testErr: tt.testErr}
 			handler := NewRouter(svc, arrSvc, nil, nil, nil).Handler()
 
-			req := httptest.NewRequest(http.MethodPost, "/instances/"+id.String()+"/test", nil)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/instances/"+id.String()+"/test", nil)
 			w := httptest.NewRecorder()
 			handler.ServeHTTP(w, req)
 

@@ -17,7 +17,7 @@ func TestMiddlewareCompositionAppliesSecurityHeaders(t *testing.T) {
 	})
 	h := withMiddleware(inner, "", "")
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
 
@@ -45,7 +45,7 @@ func TestMiddlewareCompositionWithAuthRejects(t *testing.T) {
 	})
 	h := withMiddleware(inner, "admin", "secret")
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
 

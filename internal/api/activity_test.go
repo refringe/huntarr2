@@ -75,7 +75,7 @@ func TestHandleListActivity(t *testing.T) {
 
 	handler := NewRouter(nil, nil, nil, svc, nil).Handler()
 
-	req := httptest.NewRequest(http.MethodGet, "/activity", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/activity", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -107,7 +107,7 @@ func TestHandleListActivityFiltered(t *testing.T) {
 
 	handler := NewRouter(nil, nil, nil, svc, nil).Handler()
 
-	req := httptest.NewRequest(http.MethodGet, "/activity?level=info&action=search_cycle", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/activity?level=info&action=search_cycle", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -129,7 +129,7 @@ func TestHandleListActivityBadUUID(t *testing.T) {
 	svc := &fakeActivityService{}
 	handler := NewRouter(nil, nil, nil, svc, nil).Handler()
 
-	req := httptest.NewRequest(http.MethodGet, "/activity?instanceId=not-a-uuid", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/activity?instanceId=not-a-uuid", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -143,7 +143,7 @@ func TestHandleListActivityBadTimestamp(t *testing.T) {
 	svc := &fakeActivityService{}
 	handler := NewRouter(nil, nil, nil, svc, nil).Handler()
 
-	req := httptest.NewRequest(http.MethodGet, "/activity?since=not-a-time", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/activity?since=not-a-time", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 

@@ -51,7 +51,7 @@ func TestHandleArrStatus(t *testing.T) {
 	}
 	handler := NewRouter(nil, arrSvc, nil, nil, nil).Handler()
 
-	req := httptest.NewRequest(http.MethodGet, "/arr/status", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/arr/status", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -76,7 +76,7 @@ func TestHandleInstanceSearch(t *testing.T) {
 	svc.instances[id] = instance.Instance{ID: id, AppType: instance.AppTypeSonarr}
 	handler := NewRouter(svc, arrSvc, nil, nil, nil).Handler()
 
-	req := httptest.NewRequest(http.MethodPost, "/instances/"+id.String()+"/search", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/instances/"+id.String()+"/search", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -98,7 +98,7 @@ func TestHandleInstanceSearchNotFound(t *testing.T) {
 	arrSvc := &fakeArrService{searchErr: instance.ErrNotFound}
 	handler := NewRouter(newFakeInstanceService(), arrSvc, nil, nil, nil).Handler()
 
-	req := httptest.NewRequest(http.MethodPost, "/instances/"+uuid.New().String()+"/search", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/instances/"+uuid.New().String()+"/search", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -115,7 +115,7 @@ func TestHandleInstanceSearchDefaultBatchSize(t *testing.T) {
 	svc.instances[id] = instance.Instance{ID: id, AppType: instance.AppTypeSonarr}
 	handler := NewRouter(svc, arrSvc, nil, nil, nil).Handler()
 
-	req := httptest.NewRequest(http.MethodPost, "/instances/"+id.String()+"/search", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/instances/"+id.String()+"/search", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -136,7 +136,7 @@ func TestHandleInstanceSearchCustomBatchSize(t *testing.T) {
 	handler := NewRouter(svc, arrSvc, nil, nil, nil).Handler()
 
 	body := `{"batchSize":25}`
-	req := httptest.NewRequest(http.MethodPost, "/instances/"+id.String()+"/search", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/instances/"+id.String()+"/search", bytes.NewBufferString(body))
 	req.Header.Set("Content-Length", "16")
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)

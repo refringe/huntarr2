@@ -11,7 +11,7 @@ func TestHandleHealth(t *testing.T) {
 	t.Parallel()
 	handler := NewRouter(nil, nil, nil, nil, nil).Handler()
 
-	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/health", nil)
 	w := httptest.NewRecorder()
 
 	handler.ServeHTTP(w, req)
