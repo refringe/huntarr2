@@ -58,11 +58,11 @@ type historyRecordResponse struct {
 // names are "episodeId", "movieId", and "albumId".
 func (r *historyRecordResponse) itemID(field string) int {
 	switch field {
-	case "episodeId":
+	case historyFieldEpisode:
 		return r.EpisodeID
-	case "movieId":
+	case historyFieldMovie:
 		return r.MovieID
-	case "albumId":
+	case historyFieldAlbum:
 		return r.AlbumID
 	default:
 		return 0

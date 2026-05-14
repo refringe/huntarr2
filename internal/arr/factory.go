@@ -25,6 +25,22 @@ const (
 	lidarrFileDeleted = 4 // trackFileDeleted
 )
 
+// Per-application command names, search ID field names, and history item
+// ID field names referenced by appConfigs.
+const (
+	cmdEpisodeSearch = "EpisodeSearch"
+	cmdMoviesSearch  = "MoviesSearch"
+	cmdAlbumSearch   = "AlbumSearch"
+
+	idFieldEpisodes = "episodeIds"
+	idFieldMovies   = "movieIds"
+	idFieldAlbums   = "albumIds"
+
+	historyFieldEpisode = "episodeId"
+	historyFieldMovie   = "movieId"
+	historyFieldAlbum   = "albumId"
+)
+
 // newHistoryFunc returns a fetchHistoryFunc that binds the per-app event
 // type IDs and item ID field into a closure matching the fetchHistoryFunc
 // signature.
@@ -41,37 +57,37 @@ func newHistoryFunc(deleteEventType, importEventType int, itemIDField string) fe
 // configuration. The map is read-only after initialisation.
 var appConfigs = map[instance.AppType]appConfig{
 	instance.AppTypeSonarr: {
-		name:         "sonarr",
+		name:         string(instance.AppTypeSonarr),
 		apiVersion:   "v3",
-		commandKey:   "EpisodeSearch",
-		idField:      "episodeIds",
+		commandKey:   cmdEpisodeSearch,
+		idField:      idFieldEpisodes,
 		fetchLibrary: fetchSonarrLibrary,
-		fetchHistory: newHistoryFunc(sonarrFileDeleted, sonarrImported, "episodeId"),
+		fetchHistory: newHistoryFunc(sonarrFileDeleted, sonarrImported, historyFieldEpisode),
 	},
 	instance.AppTypeRadarr: {
-		name:         "radarr",
+		name:         string(instance.AppTypeRadarr),
 		apiVersion:   "v3",
-		commandKey:   "MoviesSearch",
-		idField:      "movieIds",
+		commandKey:   cmdMoviesSearch,
+		idField:      idFieldMovies,
 		fetchLibrary: fetchRadarrLibrary,
-		fetchHistory: newHistoryFunc(radarrFileDeleted, radarrImported, "movieId"),
+		fetchHistory: newHistoryFunc(radarrFileDeleted, radarrImported, historyFieldMovie),
 	},
 	instance.AppTypeLidarr: {
-		name:         "lidarr",
+		name:         string(instance.AppTypeLidarr),
 		apiVersion:   "v1",
-		commandKey:   "AlbumSearch",
-		idField:      "albumIds",
+		commandKey:   cmdAlbumSearch,
+		idField:      idFieldAlbums,
 		fetchLibrary: fetchLidarrLibrary,
-		fetchHistory: newHistoryFunc(lidarrFileDeleted, lidarrImported, "albumId"),
+		fetchHistory: newHistoryFunc(lidarrFileDeleted, lidarrImported, historyFieldAlbum),
 	},
 	// Whisparr shares Sonarr's episode-based structure and API.
 	instance.AppTypeWhisparr: {
-		name:         "whisparr",
+		name:         string(instance.AppTypeWhisparr),
 		apiVersion:   "v3",
-		commandKey:   "EpisodeSearch",
-		idField:      "episodeIds",
+		commandKey:   cmdEpisodeSearch,
+		idField:      idFieldEpisodes,
 		fetchLibrary: fetchSonarrLibrary,
-		fetchHistory: newHistoryFunc(sonarrFileDeleted, sonarrImported, "episodeId"),
+		fetchHistory: newHistoryFunc(sonarrFileDeleted, sonarrImported, historyFieldEpisode),
 	},
 }
 

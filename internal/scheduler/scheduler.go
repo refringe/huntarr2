@@ -36,6 +36,12 @@ const historyPollInterval = 5 * time.Minute
 // historyPageSize is the number of history records fetched per poll.
 const historyPageSize = 50
 
+// Activity detail keys reused across logActivity calls.
+const (
+	detailInstanceName    = "instanceName"
+	detailInstanceBaseURL = "instanceBaseURL"
+)
+
 // cooldownRetention is the maximum age of search cooldown records.
 // Records older than this are expired and cannot affect filtering, so
 // they are safe to remove.
@@ -285,9 +291,9 @@ func (s *Scheduler) tick(ctx context.Context) {
 		if !inSearchWindow(resolved.SearchWindowStart, resolved.SearchWindowEnd, now) {
 			s.logActivity(ctx, &inst.ID, activity.LevelDebug, activity.ActionSearchSkip,
 				"outside search window", map[string]any{
-					"instanceName": inst.Name,
-					"windowStart":  resolved.SearchWindowStart,
-					"windowEnd":    resolved.SearchWindowEnd,
+					detailInstanceName: inst.Name,
+					"windowStart":      resolved.SearchWindowStart,
+					"windowEnd":        resolved.SearchWindowEnd,
 				})
 			continue
 		}
@@ -385,11 +391,11 @@ func (s *Scheduler) pollInstanceHistory(ctx context.Context, inst instance.Insta
 			label = "quality upgrade"
 		}
 		details := map[string]any{
-			"instanceName":    inst.Name,
-			"instanceBaseURL": inst.BaseURL,
-			"itemLabel":       r.ItemLabel,
-			"itemDetailPath":  r.DetailPath,
-			"quality":         r.Quality,
+			detailInstanceName:    inst.Name,
+			detailInstanceBaseURL: inst.BaseURL,
+			"itemLabel":           r.ItemLabel,
+			"itemDetailPath":      r.DetailPath,
+			"quality":             r.Quality,
 		}
 		s.logActivity(ctx, &inst.ID, activity.LevelInfo, action,
 			fmt.Sprintf("%s detected: %s", label, r.ItemLabel),
@@ -455,8 +461,8 @@ func (s *Scheduler) runInstanceCycle(
 			Msg("fetching upgradeable items")
 		s.logActivity(ctx, &inst.ID, activity.LevelError, activity.ActionSearchCycle,
 			"failed to fetch upgradeable items", map[string]any{
-				"instanceName": inst.Name,
-				"error":        err.Error(),
+				detailInstanceName: inst.Name,
+				"error":            err.Error(),
 			})
 		return 0, 0
 	}
@@ -472,15 +478,15 @@ func (s *Scheduler) runInstanceCycle(
 	if totalItems == 0 {
 		s.logActivity(ctx, &inst.ID, activity.LevelDebug, activity.ActionSearchCycle,
 			"no searchable items", map[string]any{
-				"instanceName":   inst.Name,
-				"libraryTotal":   stats.LibraryTotal,
-				"noFile":         stats.NoFile,
-				"unmonitored":    stats.Unmonitored,
-				"noProfile":      stats.NoProfile,
-				"upgradeBlocked": stats.UpgradeBlocked,
-				"unknownQuality": stats.UnknownQuality,
-				"atOrAbove":      stats.AtOrAbove,
-				"searchMissing":  resolved.SearchMissing,
+				detailInstanceName: inst.Name,
+				"libraryTotal":     stats.LibraryTotal,
+				"noFile":           stats.NoFile,
+				"unmonitored":      stats.Unmonitored,
+				"noProfile":        stats.NoProfile,
+				"upgradeBlocked":   stats.UpgradeBlocked,
+				"unknownQuality":   stats.UnknownQuality,
+				"atOrAbove":        stats.AtOrAbove,
+				"searchMissing":    resolved.SearchMissing,
 			})
 		return 0, 0
 	}
@@ -501,10 +507,10 @@ func (s *Scheduler) runInstanceCycle(
 	if len(searchIDs) == 0 {
 		s.logActivity(ctx, &inst.ID, activity.LevelDebug, activity.ActionSearchSkip,
 			"all items in cooldown", map[string]any{
-				"instanceName":   inst.Name,
-				"totalItems":     totalItems,
-				"coolingDown":    len(coolingDown),
-				"upgradeableAll": totalItems,
+				detailInstanceName: inst.Name,
+				"totalItems":       totalItems,
+				"coolingDown":      len(coolingDown),
+				"upgradeableAll":   totalItems,
 			})
 		return 0, totalItems
 	}
@@ -531,10 +537,10 @@ func (s *Scheduler) runInstanceCycle(
 			Msg("searching items")
 		s.logActivity(ctx, &inst.ID, activity.LevelError, activity.ActionSearchCycle,
 			"search command failed", map[string]any{
-				"instanceName":    inst.Name,
-				"instanceBaseURL": inst.BaseURL,
-				"error":           err.Error(),
-				"searchedItems":   searchedItems,
+				detailInstanceName:    inst.Name,
+				detailInstanceBaseURL: inst.BaseURL,
+				"error":               err.Error(),
+				"searchedItems":       searchedItems,
 			})
 		return 0, totalItems
 	}
@@ -548,16 +554,16 @@ func (s *Scheduler) runInstanceCycle(
 	s.logActivity(ctx, &inst.ID, activity.LevelInfo, activity.ActionSearchCycle,
 		fmt.Sprintf("searched %d items for %s", len(searchIDs), inst.Name),
 		map[string]any{
-			"instanceName":    inst.Name,
-			"instanceBaseURL": inst.BaseURL,
-			"searched":        len(searchIDs),
-			"skipped":         skipped,
-			"coolingDown":     len(coolingDown),
-			"upgradeableAll":  len(result.Items),
-			"missingAll":      len(result.MissingItems),
-			"candidateTotal":  totalItems,
-			"libraryTotal":    stats.LibraryTotal,
-			"searchedItems":   searchedItems,
+			detailInstanceName:    inst.Name,
+			detailInstanceBaseURL: inst.BaseURL,
+			"searched":            len(searchIDs),
+			"skipped":             skipped,
+			"coolingDown":         len(coolingDown),
+			"upgradeableAll":      len(result.Items),
+			"missingAll":          len(result.MissingItems),
+			"candidateTotal":      totalItems,
+			"libraryTotal":        stats.LibraryTotal,
+			"searchedItems":       searchedItems,
 		})
 
 	return len(searchIDs), totalItems

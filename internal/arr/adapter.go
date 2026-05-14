@@ -6,6 +6,10 @@ import (
 	"time"
 )
 
+// cmdNameField is the JSON field naming the command in an *arr command
+// request payload.
+const cmdNameField = "name"
+
 // fetchLibraryFunc fetches all library items from an *arr instance.
 type fetchLibraryFunc func(ctx context.Context, client *client, apiVersion string) ([]LibraryItem, error)
 
@@ -141,7 +145,7 @@ func (a *adapter) Search(ctx context.Context, itemIDs []int) (SearchResult, erro
 	}
 
 	cmd := map[string]any{
-		"name":        a.cfg.commandKey,
+		cmdNameField:  a.cfg.commandKey,
 		a.cfg.idField: itemIDs,
 	}
 	var raw commandResponse

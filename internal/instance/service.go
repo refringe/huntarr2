@@ -16,6 +16,18 @@ const defaultTimeoutMs = 15000
 // maxTimeoutMs is the upper bound for instance timeouts (5 minutes).
 const maxTimeoutMs = 300000
 
+// Validation field names and messages reused across validate.
+const (
+	fieldName      = "name"
+	fieldAppType   = "app_type"
+	fieldBaseURL   = "base_url"
+	fieldAPIKey    = "api_key"
+	fieldTimeoutMs = "timeout_ms"
+
+	msgMustNotBeEmpty = "must not be empty"
+	msgInvalidURL     = "must be a valid HTTP or HTTPS URL"
+)
+
 // Service provides business logic for managing instances.
 type Service struct {
 	repo Repository
@@ -88,12 +100,12 @@ func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
 func validate(inst *Instance) error {
 	inst.Name = strings.TrimSpace(inst.Name)
 	if inst.Name == "" {
-		return &ValidationError{Field: "name", Message: "must not be empty"}
+		return &ValidationError{Field: fieldName, Message: msgMustNotBeEmpty}
 	}
 
 	if !inst.AppType.Valid() {
 		return &ValidationError{
-			Field:   "app_type",
+			Field:   fieldAppType,
 			Message: fmt.Sprintf("%q is not a recognised application type", inst.AppType),
 		}
 	}
@@ -101,19 +113,19 @@ func validate(inst *Instance) error {
 	u, err := url.Parse(inst.BaseURL)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 		return &ValidationError{
-			Field:   "base_url",
-			Message: "must be a valid HTTP or HTTPS URL",
+			Field:   fieldBaseURL,
+			Message: msgInvalidURL,
 		}
 	}
 
 	inst.APIKey = strings.TrimSpace(inst.APIKey)
 	if inst.APIKey == "" {
-		return &ValidationError{Field: "api_key", Message: "must not be empty"}
+		return &ValidationError{Field: fieldAPIKey, Message: msgMustNotBeEmpty}
 	}
 
 	if inst.TimeoutMs < 0 || inst.TimeoutMs > maxTimeoutMs {
 		return &ValidationError{
-			Field:   "timeout_ms",
+			Field:   fieldTimeoutMs,
 			Message: fmt.Sprintf("must be between 0 and %d", maxTimeoutMs),
 		}
 	}

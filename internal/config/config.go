@@ -9,6 +9,17 @@ import (
 	"github.com/rs/zerolog"
 )
 
+// Environment variable names read by Load.
+const (
+	envPort              = "PORT"
+	envLogLevel          = "LOG_LEVEL"
+	envDatabasePath      = "DATABASE_PATH"
+	envSchedulerTickSecs = "SCHEDULER_TICK_SECS"
+	envEncryptionKey     = "ENCRYPTION_KEY"
+	envAuthUsername      = "AUTH_USERNAME"
+	envAuthPassword      = "AUTH_PASSWORD"
+)
+
 // Config holds all application configuration values loaded from environment
 // variables.
 type Config struct {
@@ -37,13 +48,13 @@ func Load() (*Config, error) {
 	var p parser
 
 	cfg := &Config{
-		Port:              p.intVal("PORT", 9706),
-		LogLevel:          p.logLevel("LOG_LEVEL", zerolog.InfoLevel),
-		DatabasePath:      envStr("DATABASE_PATH", "/config/huntarr2.db"),
-		SchedulerTickSecs: p.intVal("SCHEDULER_TICK_SECS", 30),
-		EncryptionKey:     p.encryptionKey("ENCRYPTION_KEY"),
-		AuthUsername:      envStr("AUTH_USERNAME", ""),
-		AuthPassword:      envStr("AUTH_PASSWORD", ""),
+		Port:              p.intVal(envPort, 9706),
+		LogLevel:          p.logLevel(envLogLevel, zerolog.InfoLevel),
+		DatabasePath:      envStr(envDatabasePath, "/config/huntarr2.db"),
+		SchedulerTickSecs: p.intVal(envSchedulerTickSecs, 30),
+		EncryptionKey:     p.encryptionKey(envEncryptionKey),
+		AuthUsername:      envStr(envAuthUsername, ""),
+		AuthPassword:      envStr(envAuthPassword, ""),
 	}
 
 	if err := errors.Join(p.errs...); err != nil {
@@ -111,9 +122,9 @@ func (c *Config) validate() error {
 // on each call to prevent callers from mutating shared state.
 func EnvKeys() []string {
 	return []string{
-		"PORT", "LOG_LEVEL", "DATABASE_PATH",
-		"SCHEDULER_TICK_SECS", "ENCRYPTION_KEY",
-		"AUTH_USERNAME", "AUTH_PASSWORD",
+		envPort, envLogLevel, envDatabasePath,
+		envSchedulerTickSecs, envEncryptionKey,
+		envAuthUsername, envAuthPassword,
 	}
 }
 
