@@ -9,9 +9,9 @@ updates:
     commit-message:
       prefix: deps
     groups:
-      golang-x:
+      gomod:
         patterns:
-          - 'golang.org/x/*'
+          - '*'
 
   - package-ecosystem: github-actions
     directory: /
@@ -20,6 +20,10 @@ updates:
       day: monday
     commit-message:
       prefix: ci
+    groups:
+      github-actions:
+        patterns:
+          - '*'
 
   - package-ecosystem: docker
     directory: /
@@ -28,3 +32,7 @@ updates:
       day: monday
     commit-message:
       prefix: docker
+    groups:
+      docker:
+        patterns:
+          - '*'
