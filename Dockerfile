@@ -21,7 +21,7 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
       -X main.date=${DATE}" \
     -o /bin/huntarr2 ./cmd/huntarr2
 
-FROM alpine:3.23
+FROM alpine:3.24
 
 LABEL org.opencontainers.image.title="Huntarr2" \
       org.opencontainers.image.description="Automated quality upgrade searches for *arr applications" \
