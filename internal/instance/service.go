@@ -74,7 +74,12 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, inst *Instance) (Ins
 
 	existing.Name = inst.Name
 	existing.BaseURL = inst.BaseURL
-	existing.APIKey = inst.APIKey
+	// A blank API key on update means "keep the existing key". The UI leaves
+	// the field empty when editing so the stored key is never leaked back to
+	// the client, so an empty value here must not overwrite it.
+	if key := strings.TrimSpace(inst.APIKey); key != "" {
+		existing.APIKey = key
+	}
 	if inst.TimeoutMs > 0 {
 		existing.TimeoutMs = inst.TimeoutMs
 	}

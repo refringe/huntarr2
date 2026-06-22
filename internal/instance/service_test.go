@@ -255,6 +255,95 @@ func TestUpdateAppliesChanges(t *testing.T) {
 	}
 }
 
+func TestUpdateBlankAPIKeyPreservesExisting(t *testing.T) {
+	t.Parallel()
+
+	repo := newFakeRepository()
+	svc := NewService(repo)
+	inst := validInstance()
+
+	if err := svc.Create(context.Background(), inst); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	// Editing the UI leaves the API key blank to avoid leaking it. A blank
+	// key on update must keep the stored value rather than wiping it.
+	update := &Instance{
+		Name:      "Renamed Sonarr",
+		BaseURL:   "http://localhost:7878",
+		APIKey:    "",
+		TimeoutMs: 15000,
+	}
+
+	got, err := svc.Update(context.Background(), inst.ID, update)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got.APIKey != "abc123" {
+		t.Errorf("api key = %q, want %q (existing key preserved)", got.APIKey, "abc123")
+	}
+	if got.Name != "Renamed Sonarr" {
+		t.Errorf("name = %q, want %q", got.Name, "Renamed Sonarr")
+	}
+}
+
+func TestUpdateWhitespaceAPIKeyPreservesExisting(t *testing.T) {
+	t.Parallel()
+
+	repo := newFakeRepository()
+	svc := NewService(repo)
+	inst := validInstance()
+
+	if err := svc.Create(context.Background(), inst); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	update := &Instance{
+		Name:      "My Sonarr",
+		BaseURL:   "http://localhost:8989",
+		APIKey:    "   ",
+		TimeoutMs: 30000,
+	}
+
+	got, err := svc.Update(context.Background(), inst.ID, update)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got.APIKey != "abc123" {
+		t.Errorf("api key = %q, want %q (existing key preserved)", got.APIKey, "abc123")
+	}
+}
+
+func TestUpdateNonBlankAPIKeyReplaces(t *testing.T) {
+	t.Parallel()
+
+	repo := newFakeRepository()
+	svc := NewService(repo)
+	inst := validInstance()
+
+	if err := svc.Create(context.Background(), inst); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	update := &Instance{
+		Name:      "My Sonarr",
+		BaseURL:   "http://localhost:8989",
+		APIKey:    "newkey456",
+		TimeoutMs: 30000,
+	}
+
+	got, err := svc.Update(context.Background(), inst.ID, update)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got.APIKey != "newkey456" {
+		t.Errorf("api key = %q, want %q (new key applied)", got.APIKey, "newkey456")
+	}
+}
+
 func TestUpdateNotFound(t *testing.T) {
 	t.Parallel()
 
