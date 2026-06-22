@@ -43,4 +43,4 @@ jobs:
           git diff --exit-code -- '*.go'
 
       - name: Lint
-        uses: golangci/golangci-lint-action@v9
+        run: go tool golangci-lint run ./...
