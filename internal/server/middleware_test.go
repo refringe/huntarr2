@@ -272,7 +272,7 @@ func TestStaticCacheHeadersVersionedFile(t *testing.T) {
 
 	handler := withStaticCacheHeaders(inner)
 
-	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/static/js/alpine-3.15.8.min.js", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/static/js/alpine-3.16.1.min.js", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 

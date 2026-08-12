@@ -17,7 +17,7 @@ import (
 const maxRequestBodyBytes = 1 << 20
 
 // staticCacheHeader is the Cache-Control value for vendored static assets
-// whose filenames contain a version number (e.g. alpine-3.15.8.min.js).
+// whose filenames contain a version number (e.g. alpine-3.16.1.min.js).
 // One year is safe because the filename changes with every version bump.
 const staticCacheHeader = "public, max-age=31536000, immutable"
 
@@ -28,7 +28,7 @@ const staticCacheHeader = "public, max-age=31536000, immutable"
 const appCacheHeader = "no-cache"
 
 // versionedFile matches filenames that contain a numeric version
-// component such as "3.15.8" or "4.2.1".
+// component such as "3.16.1" or "4.3.3".
 var versionedFile = regexp.MustCompile(`\d+\.\d+`)
 
 func withMiddleware(h http.Handler, username, password string) http.Handler {
@@ -58,7 +58,7 @@ func withSecurityHeaders(next http.Handler) http.Handler {
 }
 
 // withStaticCacheHeaders sets cache headers for static assets. Vendored
-// files whose names contain a version number (e.g. alpine-3.15.8.min.js)
+// files whose names contain a version number (e.g. alpine-3.16.1.min.js)
 // receive an immutable, one-year cache. Application files without a
 // version number (e.g. logs.js) receive no-cache so the browser
 // revalidates on every request.

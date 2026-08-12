@@ -128,7 +128,7 @@ web/
 - `.golangci.yml` — linter config (UK locale, depguard, forbidigo rules)
 - `.prettierrc.json` — Prettier config for JS/JSON/YAML
 - `Makefile` — all build/test/lint/docker targets
-- `Dockerfile` — multi-stage build (golang:1.26-alpine → alpine:3.23)
+- `Dockerfile` — multi-stage build (golang:1.26-alpine → alpine:3.24)
 - `docker-compose.yml` — local development stack
 
 ## Architecture and Conventions
