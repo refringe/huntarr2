@@ -42,9 +42,11 @@ const (
 	detailInstanceBaseURL = "instanceBaseURL"
 )
 
-// cooldownRetention is the maximum age of search cooldown records.
-// Records older than this are expired and cannot affect filtering, so
-// they are safe to remove.
+// cooldownRetention is the minimum age a search cooldown record is kept
+// before it may be pruned. The effective retention is the larger of this
+// value and every configured cooldown period (global and per instance), see
+// cooldownPruneRetention -- otherwise a cooldown period longer than a week
+// would silently be cut to seven days by the daily prune.
 const cooldownRetention = 7 * 24 * time.Hour
 
 // firstPollLookback is the lookback window used when an instance has
@@ -425,7 +427,7 @@ func (s *Scheduler) pruneActivityLog(ctx context.Context, now time.Time) {
 		return
 	}
 
-	cooldownDeleted, err := s.cooldowns.DeleteExpired(ctx, cooldownRetention)
+	cooldownDeleted, err := s.cooldowns.DeleteExpired(ctx, s.cooldownPruneRetention(ctx))
 	if err != nil {
 		log.Warn().Err(err).Msg("failed to prune expired cooldowns")
 	}
@@ -589,6 +591,35 @@ func (s *Scheduler) logActivity(
 	if err := s.activity.Log(ctx, entry); err != nil {
 		log.Warn().Err(err).Msg("failed to log scheduler activity")
 	}
+}
+
+// cooldownPruneRetention returns how long search cooldown records must be
+// kept so that every configured cooldown period (global and per instance) is
+// still honoured by FilterCoolingDown. It never returns less than
+// cooldownRetention. Settings that cannot be loaded are skipped, so a
+// transient error can only make the prune less aggressive, never more.
+func (s *Scheduler) cooldownPruneRetention(ctx context.Context) time.Duration {
+	retention := cooldownRetention
+	if global, err := s.settings.ResolveGlobal(ctx); err == nil && global.CooldownPeriod > retention {
+		retention = global.CooldownPeriod
+	}
+	insts, err := s.instances.List(ctx)
+	if err != nil {
+		log.Warn().Err(err).Msg("listing instances for cooldown prune retention")
+		return retention
+	}
+	for _, inst := range insts {
+		resolved, err := s.settings.Resolve(ctx, inst.ID)
+		if err != nil {
+			log.Warn().Err(err).Str("instance", inst.Name).
+				Msg("resolving instance settings for cooldown prune retention")
+			continue
+		}
+		if resolved.CooldownPeriod > retention {
+			retention = resolved.CooldownPeriod
+		}
+	}
+	return retention
 }
 
 // computeNextInterval adjusts the search interval based on how many items

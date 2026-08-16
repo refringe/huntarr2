@@ -1065,3 +1065,35 @@ func TestPollUpgradeHistoryThrottled(t *testing.T) {
 		t.Errorf("pollCalls = %d, want 0 (should be throttled)", len(polls.pollCalls))
 	}
 }
+
+func TestCooldownPruneRetentionHonoursConfiguredPeriods(t *testing.T) {
+	instA := instance.Instance{ID: uuid.New(), Name: "a"}
+	instB := instance.Instance{ID: uuid.New(), Name: "b"}
+	settingsRes := newFakeSettingsResolver()
+	sched := newTestScheduler(t,
+		&fakeInstanceLister{instances: []instance.Instance{instA, instB}},
+		settingsRes,
+		newFakeCooldownTracker(),
+		&fakeActivityLogger{},
+		newFakeArrSearcher(),
+		newFakePollTracker(),
+	)
+	ctx := context.Background()
+
+	// Defaults (24h everywhere) never go below the built-in retention.
+	if got := sched.cooldownPruneRetention(ctx); got != cooldownRetention {
+		t.Fatalf("default retention = %v, want %v", got, cooldownRetention)
+	}
+
+	// A longer global cooldown raises the retention.
+	settingsRes.global.CooldownPeriod = 10 * 24 * time.Hour
+	if got := sched.cooldownPruneRetention(ctx); got != 10*24*time.Hour {
+		t.Fatalf("global retention = %v, want 240h", got)
+	}
+
+	// The longest per-instance cooldown wins over the global one.
+	settingsRes.perInst[instB.ID] = settings.Resolved{CooldownPeriod: 90 * 24 * time.Hour}
+	if got := sched.cooldownPruneRetention(ctx); got != 90*24*time.Hour {
+		t.Fatalf("instance retention = %v, want 2160h", got)
+	}
+}
