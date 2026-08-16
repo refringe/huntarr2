@@ -13,8 +13,10 @@ import (
 // does not provide one.
 const defaultTimeoutMs = 15000
 
-// maxTimeoutMs is the upper bound for instance timeouts (5 minutes).
-const maxTimeoutMs = 300000
+// maxTimeoutMs is the upper bound for instance timeouts (15 minutes). Large
+// Radarr-shaped libraries (e.g. Whisparr Eros with 30k scenes returns a
+// ~110 MB /api/v3/movie payload) can take several minutes to serialise.
+const maxTimeoutMs = 900000
 
 // Validation field names and messages reused across validate.
 const (
