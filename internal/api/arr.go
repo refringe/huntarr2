@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/rs/zerolog/log"
 
@@ -14,6 +15,13 @@ import (
 
 // maxSearchBatchSize is the upper bound for a single search request.
 const maxSearchBatchSize = 1000
+
+// searchCycleWriteBudget extends the HTTP write deadline for a manual
+// search cycle beyond the server's write timeout. It must cover the worst
+// case: quality profiles and the search command (up to the per-request
+// cap each) plus the library fetch budget, with margin to write the
+// response.
+const searchCycleWriteBudget = 30 * time.Minute
 
 type searchRequest struct {
 	BatchSize int `json:"batchSize"`
@@ -35,6 +43,12 @@ func (rt *Router) handleInstanceSearch(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathUUID(w, r)
 	if !ok {
 		return
+	}
+
+	// A search cycle legitimately outlives the server's write timeout;
+	// writers that do not support deadlines keep the shorter default.
+	if err := http.NewResponseController(w).SetWriteDeadline(time.Now().Add(searchCycleWriteBudget)); err != nil {
+		log.Warn().Err(err).Msg("could not extend write deadline for search cycle")
 	}
 
 	// An empty body is accepted: batchSize defaults to 50 below when the

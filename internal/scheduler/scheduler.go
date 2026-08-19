@@ -288,7 +288,7 @@ func (s *Scheduler) tick(ctx context.Context) {
 			continue
 		}
 
-		if !inSearchWindow(resolved.SearchWindowStart, resolved.SearchWindowEnd, now) {
+		if !inSearchWindow(resolved.SearchWindowStart, resolved.SearchWindowEnd, time.Now()) {
 			s.logActivity(ctx, &inst.ID, activity.LevelDebug, activity.ActionSearchSkip,
 				"outside search window", map[string]any{
 					detailInstanceName: inst.Name,
@@ -300,6 +300,11 @@ func (s *Scheduler) tick(ctx context.Context) {
 
 		searched, totalItems := s.runInstanceCycle(ctx, inst, resolved)
 
+		// Schedule from the cycle's end, not the tick's start: a long
+		// cycle would otherwise write a NextSearchAt already in the past
+		// and re-enter the instance back-to-back.
+		cycleEnd := time.Now()
+
 		s.mu.Lock()
 		prevInterval := resolved.SearchInterval
 		if exists && sched.Interval > 0 {
@@ -309,7 +314,7 @@ func (s *Scheduler) tick(ctx context.Context) {
 			resolved.SearchInterval, prevInterval, totalItems, resolved.BatchSize,
 		)
 		s.schedules[inst.ID] = newInstanceSchedule(
-			inst.ID, inst.Name, now.Add(nextInterval), true, nextInterval,
+			inst.ID, inst.Name, cycleEnd.Add(nextInterval), true, nextInterval,
 		)
 		if searched > 0 {
 			s.searchCount += int64(searched)

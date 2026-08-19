@@ -106,6 +106,12 @@ type fakeArrSearcher struct {
 	historyRecords   map[uuid.UUID][]arr.HistoryRecord
 	searchCalls      []searchCall
 	searchErr        error
+
+	// upgradeableDelay makes Upgradeable sleep before returning, and
+	// upgradeableReturnedAt records when it returned, so tests can assert
+	// on scheduling decisions made after a slow cycle.
+	upgradeableDelay      time.Duration
+	upgradeableReturnedAt time.Time
 }
 
 type searchCall struct {
@@ -125,8 +131,12 @@ func (f *fakeArrSearcher) Upgradeable(
 	_ context.Context,
 	instanceID uuid.UUID,
 ) (arr.UpgradeResult, error) {
+	if f.upgradeableDelay > 0 {
+		time.Sleep(f.upgradeableDelay)
+	}
 	items := f.upgradeableItems[instanceID]
 	missing := f.missingItems[instanceID]
+	f.upgradeableReturnedAt = time.Now()
 	return arr.UpgradeResult{
 		Items:        items,
 		MissingItems: missing,
@@ -1063,5 +1073,48 @@ func TestPollUpgradeHistoryThrottled(t *testing.T) {
 
 	if len(polls.pollCalls) != 0 {
 		t.Errorf("pollCalls = %d, want 0 (should be throttled)", len(polls.pollCalls))
+	}
+}
+
+func TestNextSearchAtUsesCycleEndTime(t *testing.T) {
+	instID := uuid.New()
+	instances := &fakeInstanceLister{
+		instances: []instance.Instance{
+			{ID: instID, Name: "Sonarr", AppType: instance.AppTypeSonarr},
+		},
+	}
+
+	arrSearch := newFakeArrSearcher()
+	arrSearch.upgradeableItems[instID] = []arr.UpgradeItem{{ID: 1, Label: "Item 1"}}
+	arrSearch.upgradeableDelay = 100 * time.Millisecond
+
+	sched := newTestScheduler(t,
+		instances,
+		newFakeSettingsResolver(),
+		newFakeCooldownTracker(),
+		&fakeActivityLogger{},
+		arrSearch,
+		newFakePollTracker(),
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+
+	_ = sched.Run(ctx)
+
+	if arrSearch.upgradeableReturnedAt.IsZero() {
+		t.Fatal("expected at least one cycle to run")
+	}
+	st := sched.Status()
+	if len(st.Instances) != 1 {
+		t.Fatalf("len(Instances) = %d, want 1", len(st.Instances))
+	}
+
+	// The schedule must be computed from the cycle's end, not the tick's
+	// start, or a slow cycle re-enters the instance back-to-back.
+	earliest := arrSearch.upgradeableReturnedAt.Add(settings.Defaults().SearchInterval)
+	if st.Instances[0].NextSearchAt.Before(earliest) {
+		t.Errorf("NextSearchAt = %v, want not before %v (cycle end + interval)",
+			st.Instances[0].NextSearchAt, earliest)
 	}
 }

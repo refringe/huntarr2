@@ -3,6 +3,7 @@ package instance
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -128,6 +129,12 @@ func TestCreateValidation(t *testing.T) {
 			wantErr: "must be between 0 and",
 			field:   "timeout_ms",
 		},
+		{
+			name:    "timeout above maximum",
+			modify:  func(inst *Instance) { inst.TimeoutMs = maxTimeoutMs + 1 },
+			wantErr: "must be between 0 and",
+			field:   "timeout_ms",
+		},
 	}
 
 	for _, tt := range tests {
@@ -147,6 +154,9 @@ func TestCreateValidation(t *testing.T) {
 			}
 			if ve.Field != tt.field {
 				t.Errorf("field = %q, want %q", ve.Field, tt.field)
+			}
+			if !strings.Contains(ve.Message, tt.wantErr) {
+				t.Errorf("message = %q, want it to contain %q", ve.Message, tt.wantErr)
 			}
 			if !errors.Is(err, ErrValidation) {
 				t.Error("error does not wrap ErrValidation")
@@ -185,8 +195,24 @@ func TestCreateDefaultsTimeout(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if inst.TimeoutMs != 15000 {
-		t.Errorf("TimeoutMs = %d, want 15000", inst.TimeoutMs)
+	if inst.TimeoutMs != 30000 {
+		t.Errorf("TimeoutMs = %d, want 30000", inst.TimeoutMs)
+	}
+}
+
+func TestCreateTimeoutAtCap(t *testing.T) {
+	t.Parallel()
+
+	svc := NewService(newFakeRepository())
+	inst := validInstance()
+	inst.TimeoutMs = maxTimeoutMs
+
+	if err := svc.Create(context.Background(), inst); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if inst.TimeoutMs != maxTimeoutMs {
+		t.Errorf("TimeoutMs = %d, want %d", inst.TimeoutMs, maxTimeoutMs)
 	}
 }
 

@@ -2,9 +2,11 @@ package arr
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 )
 
 func TestFetchRadarrLibrary(t *testing.T) {
@@ -246,5 +248,77 @@ func TestFetchLidarrLibraryPerAlbumFailure(t *testing.T) {
 
 	if len(items) != 1 {
 		t.Fatalf("len = %d, want 1 (second album should be skipped)", len(items))
+	}
+}
+
+func TestFetchSonarrLibraryAbortsWhenContextDone(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v3/series", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`[` + //nolint:errcheck // test helper
+			`{"id":10,"title":"Fast Show","qualityProfileId":1,"monitored":true},` +
+			`{"id":20,"title":"Slow Show","qualityProfileId":1,"monitored":true}` +
+			`]`))
+	})
+	mux.HandleFunc("/api/v3/episode", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("seriesId") == "20" {
+			time.Sleep(200 * time.Millisecond)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`[]`)) //nolint:errcheck // test helper
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	client := newClient(srv.URL, "key", 0)
+	items, err := fetchSonarrLibrary(ctx, client, "v3")
+	if err == nil {
+		t.Fatalf("expected an error, got %d items", len(items))
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("error = %v, want context.DeadlineExceeded", err)
+	}
+}
+
+func TestFetchLidarrLibraryAbortsWhenContextDone(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/album", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`[` + //nolint:errcheck // test helper
+			`{"id":1,"title":"Fast Album","monitored":true,` +
+			`"artist":{"artistName":"Artist","titleSlug":"artist","qualityProfileId":1},` +
+			`"statistics":{"trackFileCount":1}},` +
+			`{"id":2,"title":"Slow Album","monitored":true,` +
+			`"artist":{"artistName":"Artist","titleSlug":"artist","qualityProfileId":1},` +
+			`"statistics":{"trackFileCount":1}}` +
+			`]`))
+	})
+	mux.HandleFunc("/api/v1/trackfile", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("albumId") == "2" {
+			time.Sleep(200 * time.Millisecond)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`[]`)) //nolint:errcheck // test helper
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	client := newClient(srv.URL, "key", 0)
+	items, err := fetchLidarrLibrary(ctx, client, "v1")
+	if err == nil {
+		t.Fatalf("expected an error, got %d items", len(items))
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("error = %v, want context.DeadlineExceeded", err)
 	}
 }

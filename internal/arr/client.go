@@ -24,13 +24,15 @@ type client struct {
 
 // newClient returns a client configured for the given *arr instance. The
 // trailing slash on baseURL is trimmed if present. Redirects are not
-// followed to prevent SSRF via open redirects.
-func newClient(baseURL, apiKey string, timeout time.Duration) *client {
+// followed to prevent SSRF via open redirects. The ceiling is a
+// defence-in-depth transport bound; per-call limits are applied through
+// context deadlines by the adapter.
+func newClient(baseURL, apiKey string, ceiling time.Duration) *client {
 	return &client{
 		baseURL: strings.TrimRight(baseURL, "/"),
 		apiKey:  apiKey,
 		httpClient: &http.Client{
-			Timeout: timeout,
+			Timeout: ceiling,
 			CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
 				return http.ErrUseLastResponse
 			},

@@ -10,8 +10,9 @@ import (
 )
 
 // defaultTimeoutMs is the timeout applied to new instances when the caller
-// does not provide one.
-const defaultTimeoutMs = 15000
+// does not provide one. It matches the schema column default and the value
+// the web UI seeds new connection forms with.
+const defaultTimeoutMs = 30000
 
 // maxTimeoutMs is the upper bound for instance timeouts (5 minutes).
 const maxTimeoutMs = 300000
@@ -49,7 +50,7 @@ func (s *Service) Get(ctx context.Context, id uuid.UUID) (Instance, error) {
 }
 
 // Create validates and persists a new instance. Callers must set Name,
-// AppType, BaseURL, and APIKey. TimeoutMs defaults to 15000 when zero.
+// AppType, BaseURL, and APIKey. TimeoutMs defaults to 30000 when zero.
 func (s *Service) Create(ctx context.Context, inst *Instance) error {
 	if inst.TimeoutMs == 0 {
 		inst.TimeoutMs = defaultTimeoutMs

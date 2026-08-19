@@ -3,6 +3,7 @@ package arr
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -392,5 +393,103 @@ func TestAdapterHistory(t *testing.T) {
 				t.Errorf("ItemLabel = %q, want %q", records[0].ItemLabel, "Test.Release")
 			}
 		})
+	}
+}
+
+func TestAdapterLibraryItemsAppliesFetchBudget(t *testing.T) {
+	t.Parallel()
+
+	var deadline time.Time
+	var hasDeadline bool
+	cfg := appConfig{
+		name:       "sonarr",
+		apiVersion: "v3",
+		fetchLibrary: func(ctx context.Context, _ *client, _ string) ([]LibraryItem, error) {
+			deadline, hasDeadline = ctx.Deadline()
+			return nil, nil
+		},
+	}
+
+	app := newAdapter("http://example.invalid", "key", 5*time.Second, cfg)
+	if _, err := app.LibraryItems(context.Background()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !hasDeadline {
+		t.Fatal("expected a deadline on the library fetch context")
+	}
+	remaining := time.Until(deadline)
+	if remaining <= libraryFetchBudget-time.Minute || remaining > libraryFetchBudget {
+		t.Errorf("deadline in %v, want within (%v, %v]",
+			remaining, libraryFetchBudget-time.Minute, libraryFetchBudget)
+	}
+}
+
+func TestAdapterLibraryItemsNotBoundByRequestTimeout(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		time.Sleep(200 * time.Millisecond)
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`[]`)) //nolint:errcheck // test helper
+	}))
+	defer srv.Close()
+
+	app, err := NewApp(instance.AppTypeRadarr, srv.URL, "key", 50*time.Millisecond)
+	if err != nil {
+		t.Fatalf("NewApp: %v", err)
+	}
+	items, err := app.LibraryItems(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(items) != 0 {
+		t.Errorf("len = %d, want 0", len(items))
+	}
+}
+
+func TestStatusTimeout(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		requestTimeout time.Duration
+		want           time.Duration
+	}{
+		{"below probe cap", 5 * time.Second, 5 * time.Second},
+		{"above probe cap", 15 * time.Minute, statusProbeTimeout},
+		{"zero", 0, statusProbeTimeout},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := statusTimeout(tc.requestTimeout); got != tc.want {
+				t.Errorf("statusTimeout(%v) = %v, want %v", tc.requestTimeout, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestAdapterQualityProfilesDeadlineExceeded(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		time.Sleep(200 * time.Millisecond)
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`[]`)) //nolint:errcheck // test helper
+	}))
+	defer srv.Close()
+
+	app, err := NewApp(instance.AppTypeSonarr, srv.URL, "key", 50*time.Millisecond)
+	if err != nil {
+		t.Fatalf("NewApp: %v", err)
+	}
+	_, err = app.QualityProfiles(context.Background())
+	if err == nil {
+		t.Fatal("expected an error")
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("error = %v, want context.DeadlineExceeded", err)
 	}
 }

@@ -3,6 +3,7 @@ package arr
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -33,18 +34,19 @@ func NewService(instances instance.Repository) *Service {
 	return &Service{instances: instances}
 }
 
-// Status fetches connection status for every instance. Unreachable
-// instances are marked as disconnected rather than causing the call to
-// fail.
+// Status fetches connection status for every instance concurrently, each
+// probe bounded by the status timeout. Unreachable instances are marked
+// as disconnected rather than causing the call to fail.
 func (s *Service) Status(ctx context.Context) ([]InstanceStatus, error) {
 	insts, err := s.instances.List(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("listing instances: %w", err)
 	}
 
-	statuses := make([]InstanceStatus, 0, len(insts))
-	for _, inst := range insts {
-		status := InstanceStatus{
+	statuses := make([]InstanceStatus, len(insts))
+	var wg sync.WaitGroup
+	for i, inst := range insts {
+		statuses[i] = InstanceStatus{
 			ID:      inst.ID,
 			Name:    inst.Name,
 			AppType: inst.AppType,
@@ -54,28 +56,30 @@ func (s *Service) Status(ctx context.Context) ([]InstanceStatus, error) {
 		if err != nil {
 			log.Warn().Err(err).Str("instance", inst.Name).
 				Msg("unsupported app type for status check")
-			statuses = append(statuses, status)
 			continue
 		}
 
-		sys, err := app.Status(ctx)
-		if err != nil {
-			log.Warn().Err(err).Str("instance", inst.Name).
-				Msg("arr instance unreachable")
-			statuses = append(statuses, status)
-			continue
-		}
-
-		status.Connected = true
-		status.Version = sys.Version
-		statuses = append(statuses, status)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			sys, err := app.Status(ctx)
+			if err != nil {
+				log.Warn().Err(err).Str("instance", inst.Name).
+					Msg("arr instance unreachable")
+				return
+			}
+			statuses[i].Connected = true
+			statuses[i].Version = sys.Version
+		}()
 	}
+	wg.Wait()
 
 	return statuses, nil
 }
 
 // TestConnection attempts to reach an *arr instance at the given address
-// and returns nil on success.
+// and returns nil on success. The probe is additionally bounded by the
+// status timeout, so a test never hangs for the full per-request timeout.
 func (s *Service) TestConnection(ctx context.Context, appType instance.AppType, baseURL, apiKey string, timeoutMs int) error {
 	timeout := time.Duration(timeoutMs) * time.Millisecond
 	app, err := NewApp(appType, baseURL, apiKey, timeout)

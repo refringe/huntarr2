@@ -78,6 +78,7 @@ func fetchSonarrLibrary(
 	}
 
 	items := make([]LibraryItem, 0)
+	skipped := 0
 	for _, series := range seriesList {
 		if !series.Monitored {
 			continue
@@ -101,6 +102,12 @@ func fetchSonarrLibrary(
 		episodePath := fmt.Sprintf("/api/%s/episode?seriesId=%d&includeEpisodeFile=true",
 			apiVersion, series.ID)
 		if err := c.get(ctx, episodePath, &episodes); err != nil {
+			// A cancelled or expired context would fail every remaining
+			// series; abort rather than return a truncated library.
+			if ctx.Err() != nil {
+				return nil, fmt.Errorf("fetching episodes for series %q: %w", series.Title, err)
+			}
+			skipped++
 			log.Warn().Err(err).
 				Int("seriesId", series.ID).
 				Str("series", series.Title).
@@ -124,6 +131,11 @@ func fetchSonarrLibrary(
 				Monitored:         ep.Monitored,
 			})
 		}
+	}
+
+	if skipped > 0 {
+		log.Warn().Int("skipped", skipped).
+			Msg("sonarr library fetch skipped series after errors")
 	}
 
 	return items, nil
@@ -159,6 +171,7 @@ func fetchLidarrLibrary(
 	}
 
 	items := make([]LibraryItem, 0)
+	skipped := 0
 	for _, album := range albums {
 		hasFile := album.Statistics.TrackFileCount > 0
 
@@ -183,6 +196,12 @@ func fetchLidarrLibrary(
 			trackPath := fmt.Sprintf("/api/%s/trackfile?albumId=%d",
 				apiVersion, album.ID)
 			if err := c.get(ctx, trackPath, &tracks); err != nil {
+				// A cancelled or expired context would fail every remaining
+				// album; abort rather than return a truncated library.
+				if ctx.Err() != nil {
+					return nil, fmt.Errorf("fetching track files for album %q: %w", album.Title, err)
+				}
+				skipped++
 				log.Warn().Err(err).
 					Int("albumId", album.ID).
 					Str("album", album.Title).
@@ -198,6 +217,11 @@ func fetchLidarrLibrary(
 		}
 
 		items = append(items, item)
+	}
+
+	if skipped > 0 {
+		log.Warn().Int("skipped", skipped).
+			Msg("lidarr library fetch skipped albums after errors")
 	}
 
 	return items, nil

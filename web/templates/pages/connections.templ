@@ -168,9 +168,15 @@ templ connectionModal() {
 						x-model.number="form.timeoutMs"
 						type="number"
 						min="1000"
+						max="300000"
 						step="1000"
+						aria-describedby="conn-timeout-help"
 						class="mt-1 w-full rounded-md border border-brand-600 bg-brand-700 px-3 py-2 text-white focus:border-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-600/50"
 					/>
+					<p id="conn-timeout-help" class="mt-1 text-xs text-gray-400">
+						Per-request timeout in milliseconds (1,000&ndash;300,000). Library scans use
+						their own internal budget and are not limited by this value.
+					</p>
 				</div>
 				<div
 					x-show="formError"

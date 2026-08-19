@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -328,5 +329,47 @@ func TestSearchCycleInstanceNotFound(t *testing.T) {
 	_, err := svc.SearchCycle(context.Background(), uuid.New(), 50)
 	if err == nil {
 		t.Fatal("expected error for missing instance, got nil")
+	}
+}
+
+func TestUpgradeableSlowLibraryUnderBudgetSucceeds(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v3/qualityprofile", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`[]`)) //nolint:errcheck // test helper
+	})
+	mux.HandleFunc("/api/v3/movie", func(w http.ResponseWriter, _ *http.Request) {
+		// Slower than the instance's per-request timeout: the library
+		// class must not be bound by it.
+		time.Sleep(300 * time.Millisecond)
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`[]`)) //nolint:errcheck // test helper
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	id := uuid.New()
+	repo := &fakeRepository{
+		instances: []instance.Instance{
+			{
+				ID:        id,
+				Name:      "Slow Radarr",
+				AppType:   instance.AppTypeRadarr,
+				BaseURL:   srv.URL,
+				APIKey:    "testkey",
+				TimeoutMs: 100,
+			},
+		},
+	}
+
+	svc := NewService(repo)
+	result, err := svc.Upgradeable(context.Background(), id)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Stats.LibraryTotal != 0 {
+		t.Errorf("LibraryTotal = %d, want 0", result.Stats.LibraryTotal)
 	}
 }
