@@ -1,8 +1,6 @@
 module github.com/refringe/huntarr2
 
-go 1.26.0
-
-toolchain go1.26.6
+go 1.27.0
 
 require (
 	github.com/a-h/templ v0.3.1020
