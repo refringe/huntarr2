@@ -136,11 +136,15 @@ func applyOverrides(r *Resolved, settings []Setting) {
 		case KeySearchWindowEnd:
 			r.SearchWindowEnd = s.Value
 		case KeySearchInterval:
-			if v, err := time.ParseDuration(s.Value); err == nil {
-				r.SearchInterval = v
-			} else {
+			if v, err := time.ParseDuration(s.Value); err != nil || v <= 0 {
 				log.Warn().Str("key", s.Key).Str("value", s.Value).
 					Msg("ignoring unparsable setting")
+			} else if v > MaxSearchInterval {
+				log.Warn().Str("key", s.Key).Str("value", s.Value).
+					Msg("clamping stored search interval to the maximum")
+				r.SearchInterval = MaxSearchInterval
+			} else {
+				r.SearchInterval = v
 			}
 		case KeySearchLimit:
 			if v, err := strconv.Atoi(s.Value); err == nil {
@@ -194,7 +198,12 @@ func validateValue(key, value string) error {
 			err = fmt.Errorf("must be positive and at most %.0fh", MaxCooldownPeriod.Hours())
 		}
 	case KeySearchInterval:
-		_, err = time.ParseDuration(value)
+		v, parseErr := time.ParseDuration(value)
+		if parseErr != nil {
+			err = parseErr
+		} else if v <= 0 || v > MaxSearchInterval {
+			err = fmt.Errorf("must be positive and at most %.0fh", MaxSearchInterval.Hours())
+		}
 	case KeyEnabled, KeySearchMissing:
 		_, err = strconv.ParseBool(value)
 	case KeySearchWindowStart, KeySearchWindowEnd:

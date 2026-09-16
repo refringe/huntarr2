@@ -38,6 +38,9 @@ var validKeys = map[string]struct{}{
 // this can no longer match any configured cooldown period and are safe to prune.
 const MaxCooldownPeriod = 90 * 24 * time.Hour
 
+// MaxSearchInterval is the longest base search interval a setting may specify.
+const MaxSearchInterval = 7 * 24 * time.Hour
+
 // ErrUnknownKey is returned when an unrecognised setting key is provided.
 var ErrUnknownKey = errors.New("unknown setting key")
 
