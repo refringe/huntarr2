@@ -38,8 +38,9 @@ const (
 	detailInstanceBaseURL = "instanceBaseURL"
 )
 
-// cooldownRetention is the maximum age of search cooldown records.
-const cooldownRetention = 7 * 24 * time.Hour
+// cooldownRetention is the maximum age of search cooldown records. Records older than the longest permitted
+// cooldown period can no longer match in FilterCoolingDown, so they are safe to remove.
+const cooldownRetention = settings.MaxCooldownPeriod
 
 // firstPollLookback is the lookback window used when an instance has never been polled before.
 const firstPollLookback = 24 * time.Hour

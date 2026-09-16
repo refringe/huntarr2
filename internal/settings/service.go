@@ -121,11 +121,15 @@ func applyOverrides(r *Resolved, settings []Setting) {
 					Msg("ignoring unparsable setting")
 			}
 		case KeyCooldownPeriod:
-			if v, err := time.ParseDuration(s.Value); err == nil {
-				r.CooldownPeriod = v
-			} else {
+			if v, err := time.ParseDuration(s.Value); err != nil || v <= 0 {
 				log.Warn().Str("key", s.Key).Str("value", s.Value).
 					Msg("ignoring unparsable setting")
+			} else if v > MaxCooldownPeriod {
+				log.Warn().Str("key", s.Key).Str("value", s.Value).
+					Msg("clamping stored cooldown period to the maximum")
+				r.CooldownPeriod = MaxCooldownPeriod
+			} else {
+				r.CooldownPeriod = v
 			}
 		case KeySearchWindowStart:
 			r.SearchWindowStart = s.Value
@@ -182,7 +186,14 @@ func validateValue(key, value string) error {
 		} else if v < 1 {
 			err = fmt.Errorf("must be a positive integer")
 		}
-	case KeyCooldownPeriod, KeySearchInterval:
+	case KeyCooldownPeriod:
+		v, parseErr := time.ParseDuration(value)
+		if parseErr != nil {
+			err = parseErr
+		} else if v <= 0 || v > MaxCooldownPeriod {
+			err = fmt.Errorf("must be positive and at most %.0fh", MaxCooldownPeriod.Hours())
+		}
+	case KeySearchInterval:
 		_, err = time.ParseDuration(value)
 	case KeyEnabled, KeySearchMissing:
 		_, err = strconv.ParseBool(value)

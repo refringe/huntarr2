@@ -40,8 +40,9 @@ func (f *fakeSettingsResolver) Resolve(_ context.Context, id uuid.UUID) (setting
 
 // fakeCooldownTracker tracks cooldown state in memory.
 type fakeCooldownTracker struct {
-	coolingDown map[uuid.UUID]map[int]struct{}
-	recorded    map[uuid.UUID][]int
+	coolingDown      map[uuid.UUID]map[int]struct{}
+	recorded         map[uuid.UUID][]int
+	deletedOlderThan []time.Duration
 }
 
 func newFakeCooldownTracker() *fakeCooldownTracker {
@@ -78,8 +79,9 @@ func (f *fakeCooldownTracker) RecordSearches(
 
 func (f *fakeCooldownTracker) DeleteExpired(
 	_ context.Context,
-	_ time.Duration,
+	olderThan time.Duration,
 ) (int64, error) {
+	f.deletedOlderThan = append(f.deletedOlderThan, olderThan)
 	return 0, nil
 }
 
@@ -1070,6 +1072,27 @@ func TestPollUpgradeHistoryThrottled(t *testing.T) {
 
 	if len(polls.pollCalls) != 0 {
 		t.Errorf("pollCalls = %d, want 0 (should be throttled)", len(polls.pollCalls))
+	}
+}
+
+func TestPruneRetainsCooldownsForLongestPermittedPeriod(t *testing.T) {
+	cooldowns := newFakeCooldownTracker()
+	sched := newTestScheduler(t,
+		&fakeInstanceLister{},
+		newFakeSettingsResolver(),
+		cooldowns,
+		&fakeActivityLogger{},
+		newFakeArrSearcher(),
+		newFakePollTracker(),
+	)
+
+	sched.pruneActivityLog(context.Background(), time.Now())
+
+	if len(cooldowns.deletedOlderThan) != 1 {
+		t.Fatalf("DeleteExpired calls = %d, want 1", len(cooldowns.deletedOlderThan))
+	}
+	if got := cooldowns.deletedOlderThan[0]; got != settings.MaxCooldownPeriod {
+		t.Errorf("DeleteExpired olderThan = %v, want %v", got, settings.MaxCooldownPeriod)
 	}
 }
 

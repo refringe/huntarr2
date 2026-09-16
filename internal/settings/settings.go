@@ -34,6 +34,10 @@ var validKeys = map[string]struct{}{
 	KeySearchMissing:     {},
 }
 
+// MaxCooldownPeriod is the longest cooldown period a setting may specify. Search cooldown records older than
+// this can no longer match any configured cooldown period and are safe to prune.
+const MaxCooldownPeriod = 90 * 24 * time.Hour
+
 // ErrUnknownKey is returned when an unrecognised setting key is provided.
 var ErrUnknownKey = errors.New("unknown setting key")
 

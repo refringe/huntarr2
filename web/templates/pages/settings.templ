@@ -92,7 +92,7 @@ templ Settings(data SettingsData) {
 								class="mt-1 w-full max-w-xs rounded-md border bg-brand-700 px-3 py-2 text-white focus:border-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-600/50"
 							/>
 							<p x-show="errors.cooldownPeriod" x-cloak class="mt-1 text-xs text-red-400" x-text="errors.cooldownPeriod" role="alert"></p>
-							<p id="setting-cooldown-help" class="mt-1 text-xs text-gray-300">Time before re-searching the same item (e.g. 24h, 12h30m).</p>
+							<p id="setting-cooldown-help" class="mt-1 text-xs text-gray-300">Time before re-searching the same item (e.g. 24h, 12h30m). Maximum 90 days (2160h).</p>
 						</div>
 						<div class="grid gap-4 sm:grid-cols-2">
 							<div>
