@@ -7,8 +7,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
-
-	"github.com/google/uuid"
+	"uuid"
 )
 
 // SQLiteRepository implements Repository using a SQLite database.

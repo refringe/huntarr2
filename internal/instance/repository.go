@@ -2,8 +2,7 @@ package instance
 
 import (
 	"context"
-
-	"github.com/google/uuid"
+	"uuid"
 )
 
 // Repository defines the persistence operations for instances.

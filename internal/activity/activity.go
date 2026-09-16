@@ -5,8 +5,7 @@ package activity
 import (
 	"errors"
 	"time"
-
-	"github.com/google/uuid"
+	"uuid"
 )
 
 // Level classifies the severity of an activity log entry.

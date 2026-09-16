@@ -5,8 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
-
-	"github.com/google/uuid"
+	"uuid"
 )
 
 // defaultTimeoutMs is the timeout applied to new instances when the caller does not provide one; it matches the

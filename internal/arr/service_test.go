@@ -7,8 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
-
-	"github.com/google/uuid"
+	"uuid"
 
 	"github.com/refringe/huntarr2/internal/instance"
 )
@@ -41,7 +40,7 @@ func (f *fakeRepository) Get(_ context.Context, id uuid.UUID) (instance.Instance
 }
 
 func (f *fakeRepository) Create(_ context.Context, inst *instance.Instance) error {
-	if inst.ID == uuid.Nil {
+	if inst.ID == uuid.Nil() {
 		inst.ID = uuid.New()
 	}
 	f.instances = append(f.instances, *inst)

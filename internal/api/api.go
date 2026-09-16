@@ -5,8 +5,7 @@ import (
 	"context"
 	"net/http"
 	"time"
-
-	"github.com/google/uuid"
+	"uuid"
 
 	"github.com/refringe/huntarr2/internal/activity"
 	"github.com/refringe/huntarr2/internal/arr"

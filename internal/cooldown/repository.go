@@ -4,8 +4,7 @@ package cooldown
 import (
 	"context"
 	"time"
-
-	"github.com/google/uuid"
+	"uuid"
 )
 
 // Repository defines the persistence operations for search cooldowns.

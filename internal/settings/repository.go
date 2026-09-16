@@ -2,8 +2,7 @@ package settings
 
 import (
 	"context"
-
-	"github.com/google/uuid"
+	"uuid"
 )
 
 // Repository defines the persistence operations for settings.

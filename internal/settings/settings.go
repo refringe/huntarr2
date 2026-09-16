@@ -7,8 +7,7 @@ import (
 	"fmt"
 	"strconv"
 	"time"
-
-	"github.com/google/uuid"
+	"uuid"
 )
 
 // Setting keys used throughout the application; each corresponds to a typed field in Resolved.

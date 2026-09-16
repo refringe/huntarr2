@@ -2,8 +2,7 @@ package server
 
 import (
 	"testing"
-
-	"github.com/google/uuid"
+	"uuid"
 
 	"github.com/refringe/huntarr2/internal/activity"
 	"github.com/refringe/huntarr2/internal/instance"

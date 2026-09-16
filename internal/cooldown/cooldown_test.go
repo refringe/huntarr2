@@ -5,8 +5,7 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	"github.com/google/uuid"
+	"uuid"
 )
 
 // fakeRepository implements Repository in memory for testing the interface contract.

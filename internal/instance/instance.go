@@ -7,8 +7,7 @@ import (
 	"fmt"
 	"slices"
 	"time"
-
-	"github.com/google/uuid"
+	"uuid"
 )
 
 // AppType identifies the type of *arr application an instance connects to.

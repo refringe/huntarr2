@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strconv"
 	"time"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 )
 

@@ -4,8 +4,8 @@ import (
 	jsonv1 "encoding/json"
 	"encoding/json/v2"
 	"net/http"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 )
 
@@ -45,7 +45,7 @@ func parseUUID(w http.ResponseWriter, raw string) (uuid.UUID, bool) {
 	id, err := uuid.Parse(raw)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid UUID")
-		return uuid.Nil, false
+		return uuid.Nil(), false
 	}
 	return id, true
 }

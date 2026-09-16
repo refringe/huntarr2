@@ -5,8 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
-
-	"github.com/google/uuid"
+	"uuid"
 )
 
 // fakeRepository implements Repository for unit tests using in-memory storage.
@@ -45,7 +44,7 @@ func (f *fakeRepository) Get(_ context.Context, id uuid.UUID) (Instance, error) 
 }
 
 func (f *fakeRepository) Create(_ context.Context, inst *Instance) error {
-	if inst.ID == uuid.Nil {
+	if inst.ID == uuid.Nil() {
 		inst.ID = uuid.New()
 	}
 	f.instances[inst.ID] = *inst
@@ -176,7 +175,7 @@ func TestCreateSuccess(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if inst.ID == uuid.Nil {
+	if inst.ID == uuid.Nil() {
 		t.Error("expected ID to be set after create")
 	}
 	if len(repo.instances) != 1 {

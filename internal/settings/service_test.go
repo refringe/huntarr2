@@ -5,8 +5,7 @@ import (
 	"errors"
 	"testing"
 	"time"
-
-	"github.com/google/uuid"
+	"uuid"
 )
 
 type fakeRepository struct {

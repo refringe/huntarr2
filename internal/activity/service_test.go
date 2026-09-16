@@ -6,8 +6,7 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/google/uuid"
+	"uuid"
 )
 
 type fakeRepository struct {
@@ -130,7 +129,7 @@ func TestLogValidEntry(t *testing.T) {
 	if len(repo.entries) != 1 {
 		t.Fatalf("len = %d, want 1", len(repo.entries))
 	}
-	if entry.ID == uuid.Nil {
+	if entry.ID == uuid.Nil() {
 		t.Error("entry ID should be assigned")
 	}
 }

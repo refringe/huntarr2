@@ -10,8 +10,7 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
-
-	"github.com/google/uuid"
+	"uuid"
 
 	"github.com/refringe/huntarr2/internal/arr"
 	"github.com/refringe/huntarr2/internal/instance"

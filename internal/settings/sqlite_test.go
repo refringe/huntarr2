@@ -4,8 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"testing"
-
-	"github.com/google/uuid"
+	"uuid"
 
 	"github.com/refringe/huntarr2/internal/database/testdb"
 	"github.com/refringe/huntarr2/internal/instance"
@@ -57,7 +56,7 @@ func TestSQLiteRepository(t *testing.T) {
 				if g.InstanceID != nil {
 					t.Fatal("expected nil InstanceID for global setting")
 				}
-				if g.ID == uuid.Nil {
+				if g.ID == uuid.Nil() {
 					t.Fatal("expected non-nil ID")
 				}
 				found = true

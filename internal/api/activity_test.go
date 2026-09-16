@@ -7,8 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
-
-	"github.com/google/uuid"
+	"uuid"
 
 	"github.com/refringe/huntarr2/internal/activity"
 )

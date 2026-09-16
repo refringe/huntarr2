@@ -3,8 +3,7 @@ package activity
 import (
 	"context"
 	"time"
-
-	"github.com/google/uuid"
+	"uuid"
 )
 
 // ListParams controls filtering and pagination when listing activity log entries.

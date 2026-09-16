@@ -10,8 +10,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 
 	"github.com/refringe/huntarr2/internal/activity"

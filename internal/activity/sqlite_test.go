@@ -6,8 +6,8 @@ import (
 	"database/sql"
 	"testing"
 	"time"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/refringe/huntarr2/internal/database/testdb"
 	"github.com/refringe/huntarr2/internal/instance"
 )
@@ -59,7 +59,7 @@ func TestSQLiteCreateAndList(t *testing.T) {
 		t.Fatalf("Create: %v", err)
 	}
 
-	if entry.ID == uuid.Nil {
+	if entry.ID == uuid.Nil() {
 		t.Error("expected Create to populate entry ID")
 	}
 	if entry.CreatedAt.IsZero() {

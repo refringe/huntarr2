@@ -6,8 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"time"
-
-	"github.com/google/uuid"
+	"uuid"
 
 	"github.com/refringe/huntarr2/internal/encrypt"
 )
@@ -80,7 +79,7 @@ func (r *SQLiteRepository) Create(ctx context.Context, inst *Instance) error {
 		return fmt.Errorf("encrypting API key: %w", err)
 	}
 
-	if inst.ID == uuid.Nil {
+	if inst.ID == uuid.Nil() {
 		inst.ID = uuid.New()
 	}
 

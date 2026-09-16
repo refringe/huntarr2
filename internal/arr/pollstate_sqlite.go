@@ -6,8 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"time"
-
-	"github.com/google/uuid"
+	"uuid"
 )
 
 // PollTracker persists and queries per-instance history poll timestamps.

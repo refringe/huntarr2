@@ -5,8 +5,8 @@ import (
 	"crypto/rand"
 	"errors"
 	"testing"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/refringe/huntarr2/internal/database/testdb"
 )
 
@@ -45,7 +45,7 @@ func TestSQLiteRepository_CreateAndGet(t *testing.T) {
 		t.Fatalf("Create: %v", err)
 	}
 
-	if inst.ID == uuid.Nil {
+	if inst.ID == uuid.Nil() {
 		t.Fatal("expected non-nil UUID after Create")
 	}
 	if inst.CreatedAt.IsZero() {
@@ -97,7 +97,7 @@ func TestSQLiteRepository_CreateGeneratesUUID(t *testing.T) {
 		t.Fatalf("Create b: %v", err)
 	}
 
-	if a.ID == uuid.Nil || b.ID == uuid.Nil {
+	if a.ID == uuid.Nil() || b.ID == uuid.Nil() {
 		t.Fatal("expected non-nil UUIDs")
 	}
 	if a.ID == b.ID {
@@ -363,7 +363,7 @@ func TestSQLiteRepository_CRUDLifecycle(t *testing.T) {
 	if err := repo.Create(ctx, inst); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
-	if inst.ID == uuid.Nil {
+	if inst.ID == uuid.Nil() {
 		t.Fatal("expected non-nil UUID after Create")
 	}
 
