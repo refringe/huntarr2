@@ -1,23 +1,17 @@
-// settingsManager manages the Settings page form, including global and
-// per-instance tabs, save, and reset-to-defaults. When saving instance
-// settings, only values that differ from the resolved global settings
-// are persisted as per-instance overrides. Values matching global are
-// removed so that future global changes propagate automatically.
+// settingsManager manages the Settings page form: global and per-instance tabs, save, and reset-to-defaults.
+// Saving instance settings persists only values that differ from the resolved global settings as per-instance
+// overrides; values matching global are removed.
 
 // Duration in milliseconds before a status message is automatically cleared.
 var MESSAGE_DISPLAY_MS = 5000;
 
-// validDuration reports whether v is a valid Go duration string (e.g. "24h",
-// "1h30m", "45s"). Returns true for empty strings since clearing the field
-// is allowed.
+// validDuration reports whether v is a valid Go duration string (e.g. "24h", "1h30m", "45s"); empty is valid.
 function validDuration(v) {
     if (!v) return true;
     return /^(\d+h)?(\d+m)?(\d+s)?$/.test(v) && v !== '';
 }
 
-// validHHMM reports whether v is a valid "HH:MM" time string with exactly
-// two digits for both hour and minute. Returns true for empty strings since
-// clearing the search window field is allowed.
+// validHHMM reports whether v is a valid "HH:MM" time string with two-digit components; empty is valid.
 function validHHMM(v) {
     if (!v) return true;
     return /^([01]\d|2[0-3]):[0-5]\d$/.test(v);
@@ -109,8 +103,6 @@ function settingsManager() {
                         this.globalSettings = data;
                     }
                 } else {
-                    // Fetch global and instance settings in parallel so the save
-                    // logic can compare form values against global.
                     var results = await Promise.all([
                         fetch('/api/settings'),
                         fetch('/api/settings?instanceId=' + this.activeTab),
@@ -169,8 +161,6 @@ function settingsManager() {
                     body: JSON.stringify({ settings: settings }),
                 });
                 if (resp.ok) {
-                    // Update the cached global settings so instance tabs can
-                    // compare against the latest values.
                     this.globalSettings = {
                         batchSize: this.form.batchSize,
                         cooldownPeriod: this.form.cooldownPeriod,
@@ -200,9 +190,8 @@ function settingsManager() {
             var url = '/api/settings?instanceId=' + this.activeTab;
             var gs = this.globalSettings || {};
 
-            // Compare each form value against the resolved global value. Only
-            // values that differ become per-instance overrides; values that
-            // match global are deleted so global changes propagate.
+            // Form values differing from the resolved global value become per-instance overrides; values matching
+            // global are deleted.
             var entries = [
                 {
                     key: 'batch_size',

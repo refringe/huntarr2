@@ -9,8 +9,7 @@ import (
 // maxListLimit caps the number of entries returned by a single List call.
 const maxListLimit = 500
 
-// Service provides operations for recording and querying activity log
-// entries.
+// Service provides operations for recording and querying activity log entries.
 type Service struct {
 	repo Repository
 }
@@ -31,9 +30,8 @@ func (s *Service) Log(ctx context.Context, entry *Entry) error {
 	return s.repo.Create(ctx, entry)
 }
 
-// List returns activity log entries matching the given parameters. The limit
-// is capped at maxListLimit and defaults to 50 if unset. The returned slice
-// is always non-nil so that JSON serialisation produces [] rather than null.
+// List returns activity log entries matching the given parameters. The limit is capped at maxListLimit, defaults
+// to 50 when unset, and the returned slice is always non-nil.
 func (s *Service) List(ctx context.Context, params ListParams) ([]Entry, error) {
 	if params.Limit <= 0 {
 		params.Limit = 50
@@ -56,14 +54,12 @@ func (s *Service) Count(ctx context.Context, params ListParams) (int, error) {
 	return s.repo.Count(ctx, params)
 }
 
-// Stats returns per-instance, per-action counts, optionally filtered to
-// entries created at or after since.
+// Stats returns per-instance, per-action counts, optionally filtered to entries created at or after since.
 func (s *Service) Stats(ctx context.Context, since *time.Time) ([]ActionStats, error) {
 	return s.repo.Stats(ctx, since)
 }
 
-// Prune deletes activity log entries older than the given retention period
-// and returns the number of rows removed.
+// Prune deletes activity log entries older than the given retention period, returning the rows removed.
 func (s *Service) Prune(ctx context.Context, retention time.Duration) (int64, error) {
 	before := time.Now().Add(-retention)
 	return s.repo.DeleteBefore(ctx, before)

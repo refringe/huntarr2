@@ -1,5 +1,4 @@
-// Package server configures and runs the HTTP server, page handlers, and
-// middleware.
+// Package server configures and runs the HTTP server, page handlers, and middleware.
 package server
 
 import (
@@ -35,9 +34,8 @@ type Server struct {
 	server       *http.Server
 }
 
-// New creates a Server with all routes and middleware wired up. The commit
-// parameter is the build's git commit hash, used for cache-busting static
-// asset URLs.
+// New creates a Server with all routes and middleware wired up. The commit parameter is the build's git commit
+// hash, used for cache-busting static asset URLs.
 func New(cfg *config.Config, db *sql.DB, commit string) (*Server, error) {
 	instanceRepo := instance.NewSQLiteRepository(db, cfg.EncryptionKey)
 	instanceSvc := instance.NewService(instanceRepo)
@@ -86,9 +84,8 @@ func New(cfg *config.Config, db *sql.DB, commit string) (*Server, error) {
 	return s, nil
 }
 
-// Run starts the HTTP server and scheduler, then blocks until a SIGINT or
-// SIGTERM is received. On shutdown, the scheduler is stopped first, then
-// the HTTP server is drained with a 30 second timeout.
+// Run starts the HTTP server and scheduler, then blocks until a SIGINT or SIGTERM is received. On shutdown, the
+// scheduler is stopped first, then the HTTP server is drained with a 30 second timeout.
 func (s *Server) Run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()

@@ -1,13 +1,13 @@
 package api
 
 import (
-	"encoding/json"
+	jsonv1 "encoding/json"
+	"encoding/json/v2"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
-
-	"github.com/google/uuid"
+	"uuid"
 
 	"github.com/refringe/huntarr2/internal/scheduler"
 )
@@ -49,7 +49,7 @@ func TestHandleSchedulerStatus(t *testing.T) {
 	}
 
 	var body scheduler.Status
-	if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
+	if err := json.UnmarshalRead(w.Body, &body, jsonv1.FormatDurationAsNano(true)); err != nil {
 		t.Fatalf("decoding: %v", err)
 	}
 	if !body.Running {

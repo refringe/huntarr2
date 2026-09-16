@@ -1,10 +1,8 @@
 #!/bin/sh
 set -e
 
-# PUID / PGID remapping
-# Unraid convention: let users set PUID/PGID to match host filesystem
-# ownership. The image creates huntarr2 with UID/GID 1000; if the
-# requested IDs differ, remap them before anything else.
+# The image creates huntarr2 with UID/GID 1000; when PUID/PGID request different IDs, remap them before anything
+# else.
 
 PUID="${PUID:-1000}"
 PGID="${PGID:-1000}"
@@ -20,10 +18,7 @@ if [ "$PUID" != "$CURRENT_UID" ]; then
     usermod -o -u "$PUID" huntarr2
 fi
 
-# Encryption key auto-generation
-# If ENCRYPTION_KEY is not set, try to read a previously generated key
-# from persistent storage. If no stored key exists, generate one and
-# write it to /config so it survives container recreation.
+# When ENCRYPTION_KEY is unset, read a previously generated key from /config, or generate one and persist it there.
 
 KEY_FILE="/config/encryption.key"
 
@@ -38,8 +33,6 @@ if [ -z "$ENCRYPTION_KEY" ]; then
     fi
     export ENCRYPTION_KEY
 fi
-
-# Fix ownership and drop privileges
 
 chown -R huntarr2:huntarr2 /config
 

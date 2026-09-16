@@ -3,12 +3,10 @@ package activity
 import (
 	"context"
 	"time"
-
-	"github.com/google/uuid"
+	"uuid"
 )
 
-// ListParams controls filtering and pagination when listing activity log
-// entries.
+// ListParams controls filtering and pagination when listing activity log entries.
 type ListParams struct {
 	Level      Level
 	InstanceID *uuid.UUID
@@ -20,8 +18,7 @@ type ListParams struct {
 	Offset     int
 }
 
-// ActionStats holds a per-instance, per-action count returned by the Stats
-// query.
+// ActionStats holds a per-instance, per-action count returned by the Stats query.
 type ActionStats struct {
 	InstanceID   *uuid.UUID
 	InstanceName string

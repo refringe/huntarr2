@@ -3,12 +3,11 @@ package api
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-
-	"github.com/google/uuid"
+	"uuid"
 
 	"github.com/refringe/huntarr2/internal/arr"
 	"github.com/refringe/huntarr2/internal/instance"
@@ -60,7 +59,7 @@ func TestHandleArrStatus(t *testing.T) {
 	}
 
 	var body []arr.InstanceStatus
-	if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
+	if err := json.UnmarshalRead(w.Body, &body); err != nil {
 		t.Fatalf("decoding: %v", err)
 	}
 	if len(body) != 1 {
@@ -85,7 +84,7 @@ func TestHandleInstanceSearch(t *testing.T) {
 	}
 
 	var body map[string]int
-	if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
+	if err := json.UnmarshalRead(w.Body, &body); err != nil {
 		t.Fatalf("decoding response: %v", err)
 	}
 	if body["searched"] != 5 {

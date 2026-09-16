@@ -152,7 +152,7 @@ func TestLastPolledInstanceIsolation(t *testing.T) {
 
 	inst2 := instance.Instance{
 		Name:      "poll-isolation-2",
-		AppType:   instance.AppTypeWhisparr,
+		AppType:   instance.AppTypeWhisparrV2,
 		BaseURL:   "http://whisparr1:6969",
 		APIKey:    "key-2",
 		TimeoutMs: 15000,

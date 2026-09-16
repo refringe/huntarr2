@@ -1,7 +1,5 @@
-// Package arr provides client implementations for *arr applications
-// (Sonarr, Radarr, Lidarr, Whisparr). The shared App interface abstracts
-// over application-specific APIs so the scheduler and API handlers can
-// operate on any *arr type uniformly.
+// Package arr provides client implementations for *arr applications (Sonarr, Radarr, Lidarr, Whisparr v2/v3)
+// behind the shared App interface.
 package arr
 
 import (
@@ -15,17 +13,14 @@ type SystemStatus struct {
 	Version string
 }
 
-// QualityLevel identifies a single quality tier (e.g. "Bluray-1080p") by
-// its numeric ID and human-readable name.
+// QualityLevel identifies a single quality tier (e.g. "Bluray-1080p") by its numeric ID and human-readable name.
 type QualityLevel struct {
 	ID   int
 	Name string
 }
 
-// ProfileEntry is one row in a quality profile's ordered list. It is either
-// an individual quality (Quality non-nil) or a named group containing
-// nested entries. Groups carry their own ID so the profile's Cutoff field
-// can reference either a quality ID or a group ID.
+// ProfileEntry is one row in a quality profile's ordered list: either an individual quality (Quality non-nil) or a
+// named group containing nested entries. Groups carry their own ID, which the profile's Cutoff can reference.
 type ProfileEntry struct {
 	ID      int
 	Quality *QualityLevel
@@ -34,9 +29,8 @@ type ProfileEntry struct {
 	Allowed bool
 }
 
-// QualityProfile represents a single quality profile configured in an *arr
-// application. Items contains the ordered list of qualities and groups;
-// the order determines rank (higher index = higher quality).
+// QualityProfile represents a single quality profile configured in an *arr application. Items is the ordered list
+// of qualities and groups; the order determines rank (higher index = higher quality).
 type QualityProfile struct {
 	ID             int
 	Name           string
@@ -45,11 +39,9 @@ type QualityProfile struct {
 	Items          []ProfileEntry
 }
 
-// LibraryItem represents a single media item (episode, movie, album)
-// from an *arr library with enough information to evaluate whether it
-// can be upgraded. For items backed by multiple files (Lidarr albums)
-// CurrentQualityIDs holds a quality ID per file so that the upgrade
-// check can use the lowest ranked track.
+// LibraryItem represents a single media item (episode, movie, album) from an *arr library with enough information
+// to evaluate whether it can be upgraded. For items backed by multiple files (Lidarr albums), CurrentQualityIDs
+// holds one quality ID per file.
 type LibraryItem struct {
 	ID                int
 	Label             string
@@ -67,9 +59,7 @@ type UpgradeItem struct {
 	DetailPath string
 }
 
-// FilterStats reports how many items were excluded at each stage of
-// upgrade filtering. This aids diagnosis when an instance with a large
-// library produces zero upgradeable items.
+// FilterStats reports how many items were excluded at each stage of upgrade filtering.
 type FilterStats struct {
 	LibraryTotal   int
 	NoFile         int
@@ -81,17 +71,14 @@ type FilterStats struct {
 	Upgradeable    int
 }
 
-// SearchResult holds the outcome of a search command sent to an *arr
-// application.
+// SearchResult holds the outcome of a search command sent to an *arr application.
 type SearchResult struct {
 	CommandID int
 }
 
-// HistoryRecord represents a single import event from an *arr instance's
-// history. IsUpgrade is true when the import replaced an existing file
-// with a higher quality version. DetailPath holds the path portion of the
-// item's detail page in the *arr UI (e.g. "/movie/the-dark-knight-2008"),
-// derived from the entity embedded in the history response.
+// HistoryRecord represents a single import event from an *arr instance's history. IsUpgrade is true when the
+// import replaced an existing file with a higher quality version; DetailPath holds the path portion of the item's
+// detail page in the *arr UI (e.g. "/movie/the-dark-knight-2008").
 type HistoryRecord struct {
 	ID         int
 	Date       time.Time
@@ -101,9 +88,7 @@ type HistoryRecord struct {
 	Quality    string
 }
 
-// App is the interface that all *arr application adapters implement. It
-// provides a uniform way to query status, quality profiles, library items,
-// and to trigger searches regardless of the underlying application type.
+// App is the interface that all *arr application adapters implement.
 type App interface {
 	Status(ctx context.Context) (SystemStatus, error)
 	QualityProfiles(ctx context.Context) ([]QualityProfile, error)

@@ -3,9 +3,9 @@ package instance
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
-
-	"github.com/google/uuid"
+	"uuid"
 )
 
 // fakeRepository implements Repository for unit tests using in-memory storage.
@@ -44,7 +44,7 @@ func (f *fakeRepository) Get(_ context.Context, id uuid.UUID) (Instance, error) 
 }
 
 func (f *fakeRepository) Create(_ context.Context, inst *Instance) error {
-	if inst.ID == uuid.Nil {
+	if inst.ID == uuid.Nil() {
 		inst.ID = uuid.New()
 	}
 	f.instances[inst.ID] = *inst
@@ -128,6 +128,12 @@ func TestCreateValidation(t *testing.T) {
 			wantErr: "must be between 0 and",
 			field:   "timeout_ms",
 		},
+		{
+			name:    "timeout above maximum",
+			modify:  func(inst *Instance) { inst.TimeoutMs = maxTimeoutMs + 1 },
+			wantErr: "must be between 0 and",
+			field:   "timeout_ms",
+		},
 	}
 
 	for _, tt := range tests {
@@ -148,6 +154,9 @@ func TestCreateValidation(t *testing.T) {
 			if ve.Field != tt.field {
 				t.Errorf("field = %q, want %q", ve.Field, tt.field)
 			}
+			if !strings.Contains(ve.Message, tt.wantErr) {
+				t.Errorf("message = %q, want it to contain %q", ve.Message, tt.wantErr)
+			}
 			if !errors.Is(err, ErrValidation) {
 				t.Error("error does not wrap ErrValidation")
 			}
@@ -166,7 +175,7 @@ func TestCreateSuccess(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if inst.ID == uuid.Nil {
+	if inst.ID == uuid.Nil() {
 		t.Error("expected ID to be set after create")
 	}
 	if len(repo.instances) != 1 {
@@ -185,8 +194,24 @@ func TestCreateDefaultsTimeout(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if inst.TimeoutMs != 15000 {
-		t.Errorf("TimeoutMs = %d, want 15000", inst.TimeoutMs)
+	if inst.TimeoutMs != 30000 {
+		t.Errorf("TimeoutMs = %d, want 30000", inst.TimeoutMs)
+	}
+}
+
+func TestCreateTimeoutAtCap(t *testing.T) {
+	t.Parallel()
+
+	svc := NewService(newFakeRepository())
+	inst := validInstance()
+	inst.TimeoutMs = maxTimeoutMs
+
+	if err := svc.Create(context.Background(), inst); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if inst.TimeoutMs != maxTimeoutMs {
+		t.Errorf("TimeoutMs = %d, want %d", inst.TimeoutMs, maxTimeoutMs)
 	}
 }
 
@@ -266,8 +291,7 @@ func TestUpdateBlankAPIKeyPreservesExisting(t *testing.T) {
 		t.Fatalf("create: %v", err)
 	}
 
-	// Editing the UI leaves the API key blank to avoid leaking it. A blank
-	// key on update must keep the stored value rather than wiping it.
+	// A blank API key on update must keep the stored value.
 	update := &Instance{
 		Name:      "Renamed Sonarr",
 		BaseURL:   "http://localhost:7878",
@@ -424,7 +448,9 @@ func TestAppTypeValid(t *testing.T) {
 		{AppTypeSonarr, true},
 		{AppTypeRadarr, true},
 		{AppTypeLidarr, true},
-		{AppTypeWhisparr, true},
+		{AppTypeWhisparrV2, true},
+		{AppTypeWhisparrV3, true},
+		{"whisparr", false},
 		{"prowlarr", false},
 		{"netflix", false},
 		{"", false},
@@ -436,5 +462,46 @@ func TestAppTypeValid(t *testing.T) {
 				t.Errorf("Valid() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestAppTypeLabel(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		appType AppType
+		want    string
+	}{
+		{AppTypeSonarr, "Sonarr"},
+		{AppTypeRadarr, "Radarr"},
+		{AppTypeLidarr, "Lidarr"},
+		{AppTypeWhisparrV2, "Whisparr V2"},
+		{AppTypeWhisparrV3, "Whisparr V3"},
+		{"bogus", "bogus"},
+	}
+
+	for _, tt := range tests {
+		t.Run(string(tt.appType), func(t *testing.T) {
+			if got := tt.appType.Label(); got != tt.want {
+				t.Errorf("Label() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestAllAppTypesInSync(t *testing.T) {
+	t.Parallel()
+
+	types := AllAppTypes()
+	if len(types) == 0 {
+		t.Fatal("AllAppTypes() returned no types")
+	}
+	for _, appType := range types {
+		if !appType.Valid() {
+			t.Errorf("%q is listed but not valid", appType)
+		}
+		if appType.Label() == string(appType) {
+			t.Errorf("%q has no display label", appType)
+		}
 	}
 }

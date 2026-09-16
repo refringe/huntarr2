@@ -8,17 +8,10 @@ package pages
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-import "github.com/refringe/huntarr2/web/templates/layouts"
-
-var appTypeSections = []struct {
-	Type  string
-	Label string
-}{
-	{"sonarr", "Sonarr"},
-	{"radarr", "Radarr"},
-	{"lidarr", "Lidarr"},
-	{"whisparr", "Whisparr"},
-}
+import (
+	"github.com/refringe/huntarr2/internal/instance"
+	"github.com/refringe/huntarr2/web/templates/layouts"
+)
 
 func Connections(data ConnectionsData) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
@@ -61,8 +54,8 @@ func Connections(data ConnectionsData) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			for _, section := range appTypeSections {
-				templ_7745c5c3_Err = connectionSection(section.Type, section.Label, data).Render(ctx, templ_7745c5c3_Buffer)
+			for _, t := range instance.AllAppTypes() {
+				templ_7745c5c3_Err = connectionSection(string(t), t.Label(), data).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -82,7 +75,7 @@ func Connections(data ConnectionsData) templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.ResolveAttributeValue("/static/js/connections.js?v=" + data.AssetVersion)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templates/pages/connections.templ`, Line: 28, Col: 66}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templates/pages/connections.templ`, Line: 21, Col: 66}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var3)
 			if templ_7745c5c3_Err != nil {
@@ -130,7 +123,7 @@ func connectionSection(appType, label string, data ConnectionsData) templ.Compon
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue(appType)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templates/pages/connections.templ`, Line: 33, Col: 33}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templates/pages/connections.templ`, Line: 26, Col: 33}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
 		if templ_7745c5c3_Err != nil {
@@ -143,7 +136,7 @@ func connectionSection(appType, label string, data ConnectionsData) templ.Compon
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(label)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templates/pages/connections.templ`, Line: 35, Col: 55}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templates/pages/connections.templ`, Line: 28, Col: 55}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -156,7 +149,7 @@ func connectionSection(appType, label string, data ConnectionsData) templ.Compon
 		var templ_7745c5c3_Var7 string
 		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.ResolveAttributeValue(appType)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templates/pages/connections.templ`, Line: 37, Col: 27}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templates/pages/connections.templ`, Line: 30, Col: 27}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var7)
 		if templ_7745c5c3_Err != nil {
@@ -169,7 +162,7 @@ func connectionSection(appType, label string, data ConnectionsData) templ.Compon
 		var templ_7745c5c3_Var8 string
 		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(label)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templates/pages/connections.templ`, Line: 41, Col: 15}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templates/pages/connections.templ`, Line: 34, Col: 15}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 		if templ_7745c5c3_Err != nil {
@@ -223,7 +216,7 @@ func connectionCard(inst ConnectionInstance) templ.Component {
 		var templ_7745c5c3_Var10 string
 		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.ResolveAttributeValue(inst.ID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templates/pages/connections.templ`, Line: 57, Col: 28}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templates/pages/connections.templ`, Line: 50, Col: 28}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var10)
 		if templ_7745c5c3_Err != nil {
@@ -236,7 +229,7 @@ func connectionCard(inst ConnectionInstance) templ.Component {
 		var templ_7745c5c3_Var11 string
 		templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.ResolveAttributeValue(inst.Name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templates/pages/connections.templ`, Line: 58, Col: 32}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templates/pages/connections.templ`, Line: 51, Col: 32}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var11)
 		if templ_7745c5c3_Err != nil {
@@ -249,7 +242,7 @@ func connectionCard(inst ConnectionInstance) templ.Component {
 		var templ_7745c5c3_Var12 string
 		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(inst.Name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templates/pages/connections.templ`, Line: 61, Col: 48}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templates/pages/connections.templ`, Line: 54, Col: 48}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 		if templ_7745c5c3_Err != nil {
@@ -262,7 +255,7 @@ func connectionCard(inst ConnectionInstance) templ.Component {
 		var templ_7745c5c3_Var13 string
 		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(inst.BaseURL)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templates/pages/connections.templ`, Line: 62, Col: 50}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templates/pages/connections.templ`, Line: 55, Col: 50}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 		if templ_7745c5c3_Err != nil {
@@ -275,7 +268,7 @@ func connectionCard(inst ConnectionInstance) templ.Component {
 		var templ_7745c5c3_Var14 string
 		templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.ResolveAttributeValue("Test " + inst.Name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templates/pages/connections.templ`, Line: 78, Col: 36}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templates/pages/connections.templ`, Line: 71, Col: 36}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var14)
 		if templ_7745c5c3_Err != nil {
@@ -288,7 +281,7 @@ func connectionCard(inst ConnectionInstance) templ.Component {
 		var templ_7745c5c3_Var15 string
 		templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.ResolveAttributeValue("Edit " + inst.Name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templates/pages/connections.templ`, Line: 86, Col: 36}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templates/pages/connections.templ`, Line: 79, Col: 36}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var15)
 		if templ_7745c5c3_Err != nil {
@@ -301,7 +294,7 @@ func connectionCard(inst ConnectionInstance) templ.Component {
 		var templ_7745c5c3_Var16 string
 		templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.ResolveAttributeValue("Delete " + inst.Name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templates/pages/connections.templ`, Line: 93, Col: 38}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templates/pages/connections.templ`, Line: 86, Col: 38}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var16)
 		if templ_7745c5c3_Err != nil {
@@ -336,7 +329,43 @@ func connectionModal() templ.Component {
 			templ_7745c5c3_Var17 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "<div x-show=\"showModal\" x-cloak class=\"fixed inset-0 z-50 flex items-center justify-center bg-black/50\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"connection-modal-title\" @keydown.escape.window=\"showModal && (showModal = false)\"><div x-trap.inert.noscroll=\"showModal\" @click.outside=\"showModal = false\" class=\"w-full max-w-md rounded-lg border border-brand-700 bg-brand-800 p-6\"><h3 id=\"connection-modal-title\" class=\"text-lg font-semibold text-white\" x-text=\"editing ? 'Edit Instance' : 'Add Instance'\"></h3><form @submit.prevent=\"saveInstance\" class=\"mt-4 space-y-4\"><div><label for=\"conn-name\" class=\"block text-sm text-gray-300\">Name</label> <input id=\"conn-name\" x-model=\"form.name\" type=\"text\" required class=\"mt-1 w-full rounded-md border border-brand-600 bg-brand-700 px-3 py-2 text-white focus:border-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-600/50\"></div><div x-show=\"!editing\"><label for=\"conn-app-type\" class=\"block text-sm text-gray-300\">Application Type</label> <select id=\"conn-app-type\" x-model=\"form.appType\" class=\"mt-1 w-full rounded-md border border-brand-600 bg-brand-700 px-3 py-2 text-white focus:border-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-600/50\"><option value=\"sonarr\">Sonarr</option> <option value=\"radarr\">Radarr</option> <option value=\"lidarr\">Lidarr</option> <option value=\"whisparr\">Whisparr</option></select></div><div><label for=\"conn-base-url\" class=\"block text-sm text-gray-300\">Base URL</label> <input id=\"conn-base-url\" x-model=\"form.baseUrl\" type=\"url\" required :placeholder=\"placeholderUrl\" class=\"mt-1 w-full rounded-md border border-brand-600 bg-brand-700 px-3 py-2 text-white focus:border-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-600/50\"></div><div><label for=\"conn-api-key\" class=\"block text-sm text-gray-300\">API Key</label> <input id=\"conn-api-key\" x-model=\"form.apiKey\" type=\"password\" :required=\"!editing\" :placeholder=\"editing ? 'Leave blank to keep current key' : ''\" class=\"mt-1 w-full rounded-md border border-brand-600 bg-brand-700 px-3 py-2 text-white focus:border-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-600/50\"></div><div><label for=\"conn-timeout\" class=\"block text-sm text-gray-300\">Timeout (ms)</label> <input id=\"conn-timeout\" x-model.number=\"form.timeoutMs\" type=\"number\" min=\"1000\" step=\"1000\" class=\"mt-1 w-full rounded-md border border-brand-600 bg-brand-700 px-3 py-2 text-white focus:border-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-600/50\"></div><div x-show=\"formError\" role=\"alert\" aria-live=\"polite\" class=\"text-sm text-red-400\" x-text=\"formError\"></div><div class=\"flex justify-end gap-3\"><button @click=\"showModal = false\" type=\"button\" class=\"rounded-md bg-brand-700 px-4 py-2 text-sm text-gray-300 hover:bg-brand-600 focus:outline-none focus:ring-2 focus:ring-accent-600 focus:ring-offset-2 focus:ring-offset-brand-800\">Cancel</button> <button type=\"submit\" class=\"rounded-md bg-accent-600 px-4 py-2 text-sm font-medium text-white hover:bg-accent-700 focus:outline-none focus:ring-2 focus:ring-accent-600 focus:ring-offset-2 focus:ring-offset-brand-800\" x-text=\"editing ? 'Save' : 'Add'\"></button></div></form></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "<div x-show=\"showModal\" x-cloak class=\"fixed inset-0 z-50 flex items-center justify-center bg-black/50\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"connection-modal-title\" @keydown.escape.window=\"showModal && (showModal = false)\"><div x-trap.inert.noscroll=\"showModal\" @click.outside=\"showModal = false\" class=\"w-full max-w-md rounded-lg border border-brand-700 bg-brand-800 p-6\"><h3 id=\"connection-modal-title\" class=\"text-lg font-semibold text-white\" x-text=\"editing ? 'Edit Instance' : 'Add Instance'\"></h3><form @submit.prevent=\"saveInstance\" class=\"mt-4 space-y-4\"><div><label for=\"conn-name\" class=\"block text-sm text-gray-300\">Name</label> <input id=\"conn-name\" x-model=\"form.name\" type=\"text\" required class=\"mt-1 w-full rounded-md border border-brand-600 bg-brand-700 px-3 py-2 text-white focus:border-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-600/50\"></div><div x-show=\"!editing\"><label for=\"conn-app-type\" class=\"block text-sm text-gray-300\">Application Type</label> <select id=\"conn-app-type\" x-model=\"form.appType\" class=\"mt-1 w-full rounded-md border border-brand-600 bg-brand-700 px-3 py-2 text-white focus:border-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-600/50\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		for _, t := range instance.AllAppTypes() {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "<option value=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var18 string
+			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.ResolveAttributeValue(string(t))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templates/pages/connections.templ`, Line: 130, Col: 32}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var18)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var19 string
+			templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(t.Label())
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/templates/pages/connections.templ`, Line: 130, Col: 46}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "</option>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "</select></div><div><label for=\"conn-base-url\" class=\"block text-sm text-gray-300\">Base URL</label> <input id=\"conn-base-url\" x-model=\"form.baseUrl\" type=\"url\" required :placeholder=\"placeholderUrl\" class=\"mt-1 w-full rounded-md border border-brand-600 bg-brand-700 px-3 py-2 text-white focus:border-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-600/50\"></div><div><label for=\"conn-api-key\" class=\"block text-sm text-gray-300\">API Key</label> <input id=\"conn-api-key\" x-model=\"form.apiKey\" type=\"password\" :required=\"!editing\" :placeholder=\"editing ? 'Leave blank to keep current key' : ''\" class=\"mt-1 w-full rounded-md border border-brand-600 bg-brand-700 px-3 py-2 text-white focus:border-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-600/50\"></div><div><label for=\"conn-timeout\" class=\"block text-sm text-gray-300\">Timeout (ms)</label> <input id=\"conn-timeout\" x-model.number=\"form.timeoutMs\" type=\"number\" min=\"1000\" max=\"300000\" step=\"1000\" aria-describedby=\"conn-timeout-help\" class=\"mt-1 w-full rounded-md border border-brand-600 bg-brand-700 px-3 py-2 text-white focus:border-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-600/50\"><p id=\"conn-timeout-help\" class=\"mt-1 text-xs text-gray-400\">Per-request timeout in milliseconds (1,000&ndash;300,000). Library scans use their own internal budget and are not limited by this value.</p></div><div x-show=\"formError\" role=\"alert\" aria-live=\"polite\" class=\"text-sm text-red-400\" x-text=\"formError\"></div><div class=\"flex justify-end gap-3\"><button @click=\"showModal = false\" type=\"button\" class=\"rounded-md bg-brand-700 px-4 py-2 text-sm text-gray-300 hover:bg-brand-600 focus:outline-none focus:ring-2 focus:ring-accent-600 focus:ring-offset-2 focus:ring-offset-brand-800\">Cancel</button> <button type=\"submit\" class=\"rounded-md bg-accent-600 px-4 py-2 text-sm font-medium text-white hover:bg-accent-700 focus:outline-none focus:ring-2 focus:ring-accent-600 focus:ring-offset-2 focus:ring-offset-brand-800\" x-text=\"editing ? 'Save' : 'Add'\"></button></div></form></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -360,12 +389,12 @@ func deleteModal() templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var18 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var18 == nil {
-			templ_7745c5c3_Var18 = templ.NopComponent
+		templ_7745c5c3_Var20 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var20 == nil {
+			templ_7745c5c3_Var20 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "<div x-show=\"showDeleteModal\" x-cloak class=\"fixed inset-0 z-50 flex items-center justify-center bg-black/50\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"delete-modal-title\" @keydown.escape.window=\"showDeleteModal && (showDeleteModal = false)\"><div x-trap.inert.noscroll=\"showDeleteModal\" @click.outside=\"showDeleteModal = false\" class=\"w-full max-w-sm rounded-lg border border-brand-700 bg-brand-800 p-6\"><h3 id=\"delete-modal-title\" class=\"text-lg font-semibold text-white\">Delete Instance</h3><p class=\"mt-2 text-gray-300\">Are you sure you want to delete <span class=\"font-medium text-white\" x-text=\"deleteName\"></span>?</p><div class=\"mt-4 flex justify-end gap-3\"><button @click=\"showDeleteModal = false\" class=\"rounded-md bg-brand-700 px-4 py-2 text-sm text-gray-300 hover:bg-brand-600 focus:outline-none focus:ring-2 focus:ring-accent-600 focus:ring-offset-2 focus:ring-offset-brand-800\">Cancel</button> <button @click=\"deleteInstance\" class=\"rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-500 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2 focus:ring-offset-brand-800\">Delete</button></div></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "<div x-show=\"showDeleteModal\" x-cloak class=\"fixed inset-0 z-50 flex items-center justify-center bg-black/50\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"delete-modal-title\" @keydown.escape.window=\"showDeleteModal && (showDeleteModal = false)\"><div x-trap.inert.noscroll=\"showDeleteModal\" @click.outside=\"showDeleteModal = false\" class=\"w-full max-w-sm rounded-lg border border-brand-700 bg-brand-800 p-6\"><h3 id=\"delete-modal-title\" class=\"text-lg font-semibold text-white\">Delete Instance</h3><p class=\"mt-2 text-gray-300\">Are you sure you want to delete <span class=\"font-medium text-white\" x-text=\"deleteName\"></span>?</p><div class=\"mt-4 flex justify-end gap-3\"><button @click=\"showDeleteModal = false\" class=\"rounded-md bg-brand-700 px-4 py-2 text-sm text-gray-300 hover:bg-brand-600 focus:outline-none focus:ring-2 focus:ring-accent-600 focus:ring-offset-2 focus:ring-offset-brand-800\">Cancel</button> <button @click=\"deleteInstance\" class=\"rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-500 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2 focus:ring-offset-brand-800\">Delete</button></div></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

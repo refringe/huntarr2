@@ -92,7 +92,7 @@ templ Settings(data SettingsData) {
 								class="mt-1 w-full max-w-xs rounded-md border bg-brand-700 px-3 py-2 text-white focus:border-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-600/50"
 							/>
 							<p x-show="errors.cooldownPeriod" x-cloak class="mt-1 text-xs text-red-400" x-text="errors.cooldownPeriod" role="alert"></p>
-							<p id="setting-cooldown-help" class="mt-1 text-xs text-gray-300">Time before re-searching the same item (e.g. 24h, 12h30m).</p>
+							<p id="setting-cooldown-help" class="mt-1 text-xs text-gray-300">Time before re-searching the same item (e.g. 24h, 12h30m). Maximum 90 days (2160h).</p>
 						</div>
 						<div class="grid gap-4 sm:grid-cols-2">
 							<div>
@@ -138,7 +138,7 @@ templ Settings(data SettingsData) {
 								class="mt-1 w-full max-w-xs rounded-md border bg-brand-700 px-3 py-2 text-white focus:border-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-600/50"
 							/>
 							<p x-show="errors.searchInterval" x-cloak class="mt-1 text-xs text-red-400" x-text="errors.searchInterval" role="alert"></p>
-							<p id="setting-interval-help" class="mt-1 text-xs text-gray-300">Base interval between search cycles (e.g. 6h, 1h30m).</p>
+							<p id="setting-interval-help" class="mt-1 text-xs text-gray-300">Base interval between search cycles (e.g. 6h, 1h30m). Maximum 7 days (168h).</p>
 						</div>
 						<template x-if="activeTab === 'global'">
 							<div>

@@ -7,8 +7,9 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// fetchRadarrLibrary retrieves all movies from a Radarr instance and
-// returns them as LibraryItems. Each movie maps to one LibraryItem.
+// fetchRadarrLibrary retrieves all movies from a Radarr (or Whisparr v3) instance as LibraryItems. Whisparr v3
+// models scenes as movies: its titleSlug is an identifier such as "tmdb:<id>" (still valid in the /movie/ detail
+// path) and its year may be zero.
 func fetchRadarrLibrary(
 	ctx context.Context,
 	c *client,
@@ -42,9 +43,13 @@ func fetchRadarrLibrary(
 		if m.MovieFile != nil {
 			qualityIDs = []int{m.MovieFile.Quality.Quality.ID}
 		}
+		label := m.Title
+		if m.Year != 0 {
+			label = fmt.Sprintf("%s (%d)", m.Title, m.Year)
+		}
 		items[i] = LibraryItem{
 			ID:                m.ID,
-			Label:             fmt.Sprintf("%s (%d)", m.Title, m.Year),
+			Label:             label,
 			DetailPath:        fmt.Sprintf("/movie/%s", m.TitleSlug),
 			QualityProfileID:  m.QualityProfileID,
 			CurrentQualityIDs: qualityIDs,
@@ -55,10 +60,8 @@ func fetchRadarrLibrary(
 	return items, nil
 }
 
-// fetchSonarrLibrary retrieves all episodes from a Sonarr (or Whisparr)
-// instance and returns them as LibraryItems. It fetches all series first,
-// then fetches episodes per monitored series. Per-series failures are
-// logged and skipped to maintain resilience.
+// fetchSonarrLibrary retrieves all episodes from a Sonarr (or Whisparr v2) instance as LibraryItems, fetching all
+// series first and then episodes per monitored series. Per-series failures are logged and skipped.
 func fetchSonarrLibrary(
 	ctx context.Context,
 	c *client,
@@ -78,6 +81,7 @@ func fetchSonarrLibrary(
 	}
 
 	items := make([]LibraryItem, 0)
+	skipped := 0
 	for _, series := range seriesList {
 		if !series.Monitored {
 			continue
@@ -101,6 +105,11 @@ func fetchSonarrLibrary(
 		episodePath := fmt.Sprintf("/api/%s/episode?seriesId=%d&includeEpisodeFile=true",
 			apiVersion, series.ID)
 		if err := c.get(ctx, episodePath, &episodes); err != nil {
+			// A cancelled or expired context would fail every remaining series and truncate the library.
+			if ctx.Err() != nil {
+				return nil, fmt.Errorf("fetching episodes for series %q: %w", series.Title, err)
+			}
+			skipped++
 			log.Warn().Err(err).
 				Int("seriesId", series.ID).
 				Str("series", series.Title).
@@ -126,14 +135,16 @@ func fetchSonarrLibrary(
 		}
 	}
 
+	if skipped > 0 {
+		log.Warn().Int("skipped", skipped).
+			Msg("sonarr library fetch skipped series after errors")
+	}
+
 	return items, nil
 }
 
-// fetchLidarrLibrary retrieves all albums from a Lidarr instance and
-// returns them as LibraryItems. For albums with files, it fetches track
-// files and stores all track quality IDs so that the upgrade check can
-// compare the lowest ranked track against the profile cutoff.
-// Per-album failures are logged and skipped.
+// fetchLidarrLibrary retrieves all albums from a Lidarr instance as LibraryItems, fetching track files for albums
+// with files and storing every track quality ID. Per-album failures are logged and skipped.
 func fetchLidarrLibrary(
 	ctx context.Context,
 	c *client,
@@ -159,6 +170,7 @@ func fetchLidarrLibrary(
 	}
 
 	items := make([]LibraryItem, 0)
+	skipped := 0
 	for _, album := range albums {
 		hasFile := album.Statistics.TrackFileCount > 0
 
@@ -183,6 +195,11 @@ func fetchLidarrLibrary(
 			trackPath := fmt.Sprintf("/api/%s/trackfile?albumId=%d",
 				apiVersion, album.ID)
 			if err := c.get(ctx, trackPath, &tracks); err != nil {
+				// A cancelled or expired context would fail every remaining album and truncate the library.
+				if ctx.Err() != nil {
+					return nil, fmt.Errorf("fetching track files for album %q: %w", album.Title, err)
+				}
+				skipped++
 				log.Warn().Err(err).
 					Int("albumId", album.ID).
 					Str("album", album.Title).
@@ -198,6 +215,11 @@ func fetchLidarrLibrary(
 		}
 
 		items = append(items, item)
+	}
+
+	if skipped > 0 {
+		log.Warn().Int("skipped", skipped).
+			Msg("lidarr library fetch skipped albums after errors")
 	}
 
 	return items, nil

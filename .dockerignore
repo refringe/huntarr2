@@ -1,9 +1,12 @@
+.git
 .github
 .idea
 .vscode
 bin/
 coverage.out
 *.test
+*.db
+node_modules/
 *.md
 LICENSE
 Makefile

@@ -11,14 +11,11 @@ import (
 	"github.com/refringe/huntarr2/internal/database/migrations"
 )
 
-// migrateMu serialises calls to Migrate so that concurrent tests do not
-// race on goose's package-level state (SetBaseFS, SetDialect, SetLogger).
-// Each test database is independent, so the serialisation only affects the
-// brief migration setup, not ongoing queries.
+// migrateMu serialises calls to Migrate; goose's package-level state (SetBaseFS, SetDialect, SetLogger) is not
+// safe for concurrent use.
 var migrateMu sync.Mutex
 
-// Migrate runs all pending database migrations using goose. The provided
-// *sql.DB must already be open and configured.
+// Migrate runs all pending database migrations using goose against an already open and configured *sql.DB.
 func Migrate(db *sql.DB, logger zerolog.Logger) error {
 	migrateMu.Lock()
 	defer migrateMu.Unlock()

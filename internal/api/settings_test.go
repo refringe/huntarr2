@@ -3,13 +3,12 @@ package api
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-
-	"github.com/google/uuid"
+	"uuid"
 
 	"github.com/refringe/huntarr2/internal/settings"
 )
@@ -91,7 +90,7 @@ func TestHandleGetSettingsGlobal(t *testing.T) {
 		CooldownPeriod string `json:"cooldownPeriod"`
 		SearchInterval string `json:"searchInterval"`
 	}
-	if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
+	if err := json.UnmarshalRead(w.Body, &body); err != nil {
 		t.Fatalf("decoding: %v", err)
 	}
 	if body.BatchSize != settings.Defaults().BatchSize {

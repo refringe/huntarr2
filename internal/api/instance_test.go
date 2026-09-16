@@ -3,15 +3,16 @@ package api
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
+	"uuid"
 
-	"github.com/google/uuid"
-
+	"github.com/refringe/huntarr2/internal/arr"
 	"github.com/refringe/huntarr2/internal/instance"
 )
 
@@ -99,7 +100,7 @@ func TestHandleListInstances(t *testing.T) {
 	}
 
 	var body []instanceResponse
-	if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
+	if err := json.UnmarshalRead(w.Body, &body); err != nil {
 		t.Fatalf("decoding: %v", err)
 	}
 	if len(body) != 1 {
@@ -121,7 +122,7 @@ func TestHandleCreateInstanceValid(t *testing.T) {
 	}
 
 	var resp instanceResponse
-	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+	if err := json.UnmarshalRead(w.Body, &resp); err != nil {
 		t.Fatalf("decoding: %v", err)
 	}
 	if resp.Name != "My Sonarr" {
@@ -201,7 +202,7 @@ func TestHandleUpdateInstance(t *testing.T) {
 	}
 
 	var resp instanceResponse
-	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+	if err := json.UnmarshalRead(w.Body, &resp); err != nil {
 		t.Fatalf("decoding response: %v", err)
 	}
 	if resp.Name != "Renamed" {
@@ -273,7 +274,7 @@ func TestHandleTestInstanceSuccess(t *testing.T) {
 	}
 
 	var body map[string]string
-	if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
+	if err := json.UnmarshalRead(w.Body, &body); err != nil {
 		t.Fatalf("decoding response: %v", err)
 	}
 	if body["status"] != "ok" {
@@ -320,6 +321,12 @@ func TestHandleTestInstanceAppTypes(t *testing.T) {
 			wantStatus: "ok",
 		},
 		{
+			name:       "whisparr-v3 success",
+			appType:    instance.AppTypeWhisparrV3,
+			baseURL:    "http://whisparr:6969",
+			wantStatus: "ok",
+		},
+		{
 			name:       "connection failure",
 			appType:    instance.AppTypeSonarr,
 			baseURL:    "http://sonarr:8989",
@@ -327,6 +334,16 @@ func TestHandleTestInstanceAppTypes(t *testing.T) {
 			wantCode:   http.StatusBadGateway,
 			wantStatus: "failed",
 			wantMsg:    "connection test failed; check the instance URL and API key",
+		},
+		{
+			name:    "version mismatch surfaces detail",
+			appType: instance.AppTypeWhisparrV3,
+			baseURL: "http://whisparr:6969",
+			testErr: fmt.Errorf("%w: the server reports version 2.0.0.548; expected a v3 server for whisparr-v3",
+				arr.ErrVersionMismatch),
+			wantCode:   http.StatusBadGateway,
+			wantStatus: "failed",
+			wantMsg:    "application version mismatch: the server reports version 2.0.0.548; expected a v3 server for whisparr-v3",
 		},
 	}
 
@@ -362,7 +379,7 @@ func TestHandleTestInstanceAppTypes(t *testing.T) {
 			}
 
 			var body map[string]string
-			if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
+			if err := json.UnmarshalRead(w.Body, &body); err != nil {
 				t.Fatalf("decoding response: %v", err)
 			}
 			if body["status"] != tt.wantStatus {

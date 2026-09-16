@@ -3,12 +3,11 @@ package activity
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"strings"
 	"time"
-
-	"github.com/google/uuid"
+	"uuid"
 )
 
 // SQLiteRepository implements Repository using a SQLite database.
@@ -21,8 +20,7 @@ func NewSQLiteRepository(db *sql.DB) *SQLiteRepository {
 	return &SQLiteRepository{db: db}
 }
 
-// Create inserts a new activity log entry. The Details map is marshalled
-// to JSON text.
+// Create inserts a new activity log entry, marshalling the Details map to JSON text.
 func (r *SQLiteRepository) Create(ctx context.Context, entry *Entry) error {
 	detailsJSON, err := json.Marshal(entry.Details)
 	if err != nil {
@@ -57,8 +55,7 @@ func (r *SQLiteRepository) Create(ctx context.Context, entry *Entry) error {
 	return nil
 }
 
-// List returns activity log entries matching the given parameters, ordered
-// by created_at descending.
+// List returns activity log entries matching the given parameters, ordered by created_at descending.
 func (r *SQLiteRepository) List(ctx context.Context, params ListParams) ([]Entry, error) {
 	query, args := buildListQuery(
 		`SELECT id, instance_id, level, action, message,
@@ -104,8 +101,7 @@ func (r *SQLiteRepository) Count(ctx context.Context, params ListParams) (int, e
 	return count, nil
 }
 
-// Stats returns per-instance, per-action counts, optionally filtered to
-// entries created at or after since.
+// Stats returns per-instance, per-action counts, optionally filtered to entries created at or after since.
 func (r *SQLiteRepository) Stats(ctx context.Context, since *time.Time) ([]ActionStats, error) {
 	var args []any
 	query := `SELECT al.instance_id, COALESCE(i.name, ''),
@@ -151,8 +147,7 @@ func (r *SQLiteRepository) Stats(ctx context.Context, since *time.Time) ([]Actio
 	return results, nil
 }
 
-// DeleteBefore removes all activity log entries created before the given
-// timestamp and returns the number of rows removed.
+// DeleteBefore removes all activity log entries created before the given timestamp, returning the rows removed.
 func (r *SQLiteRepository) DeleteBefore(ctx context.Context, before time.Time) (int64, error) {
 	result, err := r.db.ExecContext(ctx,
 		`DELETE FROM activity_log WHERE created_at < ?`,
@@ -211,8 +206,7 @@ func scanEntry(rows *sql.Rows) (Entry, error) {
 	return e, nil
 }
 
-// buildListQuery constructs the FROM/WHERE portion of a query from the
-// given params. It returns the full query string and positional arguments.
+// buildListQuery constructs the FROM/WHERE portion of a query from params, returning the query and its arguments.
 func buildListQuery(selectClause string, params ListParams) (string, []any) {
 	var conditions []string
 	var args []any

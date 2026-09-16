@@ -5,8 +5,7 @@ import (
 	"errors"
 	"testing"
 	"time"
-
-	"github.com/google/uuid"
+	"uuid"
 )
 
 type fakeRepository struct {
@@ -168,6 +167,62 @@ func TestResolvePrecedence(t *testing.T) {
 	})
 }
 
+func TestResolveOutOfRangeCooldownPeriod(t *testing.T) {
+	t.Parallel()
+
+	t.Run("stored oversized value is clamped to the maximum", func(t *testing.T) {
+		repo := newFakeRepository()
+		repo.global = []Setting{{Key: KeyCooldownPeriod, Value: "876000h"}}
+		r, err := NewService(repo).ResolveGlobal(context.Background())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if r.CooldownPeriod != MaxCooldownPeriod {
+			t.Errorf("CooldownPeriod = %v, want %v", r.CooldownPeriod, MaxCooldownPeriod)
+		}
+	})
+
+	t.Run("stored non-positive value falls back to the default", func(t *testing.T) {
+		repo := newFakeRepository()
+		repo.global = []Setting{{Key: KeyCooldownPeriod, Value: "-24h"}}
+		r, err := NewService(repo).ResolveGlobal(context.Background())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if r.CooldownPeriod != Defaults().CooldownPeriod {
+			t.Errorf("CooldownPeriod = %v, want %v", r.CooldownPeriod, Defaults().CooldownPeriod)
+		}
+	})
+}
+
+func TestResolveOutOfRangeSearchInterval(t *testing.T) {
+	t.Parallel()
+
+	t.Run("stored oversized value is clamped to the maximum", func(t *testing.T) {
+		repo := newFakeRepository()
+		repo.global = []Setting{{Key: KeySearchInterval, Value: "8760h"}}
+		r, err := NewService(repo).ResolveGlobal(context.Background())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if r.SearchInterval != MaxSearchInterval {
+			t.Errorf("SearchInterval = %v, want %v", r.SearchInterval, MaxSearchInterval)
+		}
+	})
+
+	t.Run("stored non-positive value falls back to the default", func(t *testing.T) {
+		repo := newFakeRepository()
+		repo.global = []Setting{{Key: KeySearchInterval, Value: "-6h"}}
+		r, err := NewService(repo).ResolveGlobal(context.Background())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if r.SearchInterval != Defaults().SearchInterval {
+			t.Errorf("SearchInterval = %v, want %v", r.SearchInterval, Defaults().SearchInterval)
+		}
+	})
+}
+
 func TestSetInvalidKey(t *testing.T) {
 	t.Parallel()
 	svc := NewService(newFakeRepository())
@@ -187,7 +242,13 @@ func TestSetInvalidValue(t *testing.T) {
 		{KeyBatchSize, "0"},
 		{KeyBatchSize, "-5"},
 		{KeyCooldownPeriod, "not_a_duration"},
+		{KeyCooldownPeriod, "0s"},
+		{KeyCooldownPeriod, "-24h"},
+		{KeyCooldownPeriod, "2161h"},
 		{KeySearchInterval, "bad"},
+		{KeySearchInterval, "0s"},
+		{KeySearchInterval, "-6h"},
+		{KeySearchInterval, "169h"},
 		{KeySearchLimit, "abc"},
 		{KeySearchLimit, "0"},
 		{KeySearchLimit, "-1"},
@@ -216,7 +277,9 @@ func TestSetValidValues(t *testing.T) {
 	}{
 		{KeyBatchSize, "50"},
 		{KeyCooldownPeriod, "6h"},
+		{KeyCooldownPeriod, "2160h"},
 		{KeySearchInterval, "30m"},
+		{KeySearchInterval, "168h"},
 		{KeySearchLimit, "200"},
 		{KeyEnabled, "false"},
 		{KeySearchMissing, "true"},

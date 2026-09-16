@@ -1,6 +1,5 @@
-// Package scheduler implements the adaptive scheduling engine for quality
-// upgrade searches. It wakes on a fixed tick interval, iterates over enabled
-// *arr instances, checks constraints (search window, rate limit), fetches
+// Package scheduler implements the adaptive scheduling engine for quality upgrade searches. It wakes on a fixed
+// tick interval, iterates over enabled *arr instances, checks constraints (search window, rate limit), fetches
 // upgradeable items, filters by cooldown, and triggers searches.
 package scheduler
 
@@ -11,8 +10,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 
 	"github.com/refringe/huntarr2/internal/activity"
@@ -21,16 +20,13 @@ import (
 	"github.com/refringe/huntarr2/internal/settings"
 )
 
-// activityRetention is the maximum age of activity log entries. Entries
-// older than this are deleted automatically.
+// activityRetention is the maximum age of retained activity log entries.
 const activityRetention = 30 * 24 * time.Hour
 
-// pruneInterval controls how often the scheduler prunes old activity log
-// entries.
+// pruneInterval controls how often the scheduler prunes old activity log entries.
 const pruneInterval = 24 * time.Hour
 
-// historyPollInterval is the minimum time between successive history
-// polls across all instances.
+// historyPollInterval is the minimum time between successive history polls across all instances.
 const historyPollInterval = 5 * time.Minute
 
 // historyPageSize is the number of history records fetched per poll.
@@ -42,18 +38,14 @@ const (
 	detailInstanceBaseURL = "instanceBaseURL"
 )
 
-// cooldownRetention is the maximum age of search cooldown records.
-// Records older than this are expired and cannot affect filtering, so
-// they are safe to remove.
-const cooldownRetention = 7 * 24 * time.Hour
+// cooldownRetention is the maximum age of search cooldown records. Records older than the longest permitted
+// cooldown period can no longer match in FilterCoolingDown, so they are safe to remove.
+const cooldownRetention = settings.MaxCooldownPeriod
 
-// firstPollLookback is the lookback window used when an instance has
-// never been polled before, preventing a flood of duplicate entries on
-// the very first run.
+// firstPollLookback is the lookback window used when an instance has never been polled before.
 const firstPollLookback = 24 * time.Hour
 
-// settingsResolver loads and merges settings for a specific instance or
-// globally.
+// settingsResolver loads and merges settings for a specific instance or globally.
 type settingsResolver interface {
 	Resolve(ctx context.Context, instanceID uuid.UUID) (settings.Resolved, error)
 	ResolveGlobal(ctx context.Context) (settings.Resolved, error)
@@ -68,15 +60,13 @@ type cooldownTracker interface {
 	DeleteExpired(ctx context.Context, olderThan time.Duration) (int64, error)
 }
 
-// activityLogger persists structured activity log entries and supports
-// periodic pruning of old entries.
+// activityLogger persists structured activity log entries and supports periodic pruning of old entries.
 type activityLogger interface {
 	Log(ctx context.Context, entry *activity.Entry) error
 	Prune(ctx context.Context, retention time.Duration) (int64, error)
 }
 
-// arrSearcher fetches upgradeable items, triggers searches, and reads
-// import history from *arr instances.
+// arrSearcher fetches upgradeable items, triggers searches, and reads import history from *arr instances.
 type arrSearcher interface {
 	Upgradeable(ctx context.Context,
 		instanceID uuid.UUID) (arr.UpgradeResult, error)
@@ -86,8 +76,7 @@ type arrSearcher interface {
 		since time.Time, pageSize int) ([]arr.HistoryRecord, error)
 }
 
-// pollTracker persists and queries per-instance history poll
-// timestamps.
+// pollTracker persists and queries per-instance history poll timestamps.
 type pollTracker interface {
 	LastPolled(ctx context.Context, instanceID uuid.UUID) (time.Time, error)
 	RecordPoll(ctx context.Context, instanceID uuid.UUID, polledAt time.Time) error
@@ -98,8 +87,7 @@ type instanceLister interface {
 	List(ctx context.Context) ([]instance.Instance, error)
 }
 
-// InstanceSchedule holds scheduling state for a single instance, exposed
-// by the Status endpoint.
+// InstanceSchedule holds scheduling state for a single instance, exposed by the Status endpoint.
 type InstanceSchedule struct {
 	InstanceID   uuid.UUID     `json:"instanceId"`
 	InstanceName string        `json:"instanceName"`
@@ -116,8 +104,7 @@ type Status struct {
 	Instances        []InstanceSchedule `json:"instances"`
 }
 
-// Scheduler is the scheduling engine. It is safe for concurrent use; the
-// Status method may be called from any goroutine while Run is executing.
+// Scheduler is the scheduling engine; Status may be called from any goroutine while Run is executing.
 type Scheduler struct {
 	tickInterval time.Duration
 	instances    instanceLister
@@ -137,10 +124,7 @@ type Scheduler struct {
 	lastHistoryPoll time.Time
 }
 
-// New creates a Scheduler with the given tick interval and dependencies.
-// It returns an error if tickInterval is not positive, since
-// time.NewTicker requires a positive duration and a zero or negative
-// value indicates a configuration error that must be caught at startup.
+// New creates a Scheduler with the given tick interval and dependencies, rejecting a non-positive tick interval.
 func New(
 	tickInterval time.Duration,
 	instances instanceLister,
@@ -288,7 +272,7 @@ func (s *Scheduler) tick(ctx context.Context) {
 			continue
 		}
 
-		if !inSearchWindow(resolved.SearchWindowStart, resolved.SearchWindowEnd, now) {
+		if !inSearchWindow(resolved.SearchWindowStart, resolved.SearchWindowEnd, time.Now()) {
 			s.logActivity(ctx, &inst.ID, activity.LevelDebug, activity.ActionSearchSkip,
 				"outside search window", map[string]any{
 					detailInstanceName: inst.Name,
@@ -300,6 +284,8 @@ func (s *Scheduler) tick(ctx context.Context) {
 
 		searched, totalItems := s.runInstanceCycle(ctx, inst, resolved)
 
+		cycleEnd := time.Now()
+
 		s.mu.Lock()
 		prevInterval := resolved.SearchInterval
 		if exists && sched.Interval > 0 {
@@ -309,7 +295,7 @@ func (s *Scheduler) tick(ctx context.Context) {
 			resolved.SearchInterval, prevInterval, totalItems, resolved.BatchSize,
 		)
 		s.schedules[inst.ID] = newInstanceSchedule(
-			inst.ID, inst.Name, now.Add(nextInterval), true, nextInterval,
+			inst.ID, inst.Name, cycleEnd.Add(nextInterval), true, nextInterval,
 		)
 		if searched > 0 {
 			s.searchCount += int64(searched)
@@ -317,7 +303,6 @@ func (s *Scheduler) tick(ctx context.Context) {
 		s.mu.Unlock()
 	}
 
-	// Remove schedule entries for instances that no longer exist.
 	s.mu.Lock()
 	for id := range s.schedules {
 		if _, ok := seen[id]; !ok {
@@ -332,11 +317,7 @@ func (s *Scheduler) tick(ctx context.Context) {
 	s.pruneActivityLog(ctx, now)
 }
 
-// pollUpgradeHistory checks each instance for recent quality upgrades
-// and new downloads by reading their history API. Polling is throttled
-// to at most once per historyPollInterval. The timestamp is updated
-// before polling so that persistent failures do not cause a tight
-// retry loop.
+// pollUpgradeHistory polls each instance's history for upgrades and downloads, at most once per historyPollInterval.
 func (s *Scheduler) pollUpgradeHistory(ctx context.Context, insts []instance.Instance) {
 	now := time.Now()
 	s.mu.Lock()
@@ -357,8 +338,7 @@ func (s *Scheduler) pollUpgradeHistory(ctx context.Context, insts []instance.Ins
 	}
 }
 
-// pollInstanceHistory polls a single instance's history for upgrades
-// and new downloads, logging an activity entry for each detected event.
+// pollInstanceHistory polls one instance's history, logging an activity entry for each upgrade or download found.
 func (s *Scheduler) pollInstanceHistory(ctx context.Context, inst instance.Instance) {
 	since, err := s.polls.LastPolled(ctx, inst.ID)
 	if err != nil {
@@ -408,8 +388,7 @@ func (s *Scheduler) pollInstanceHistory(ctx context.Context, inst instance.Insta
 	}
 }
 
-// pruneActivityLog deletes old activity log entries and expired cooldown
-// records once per day.
+// pruneActivityLog deletes old activity log entries and expired cooldown records once per day.
 func (s *Scheduler) pruneActivityLog(ctx context.Context, now time.Time) {
 	s.mu.Lock()
 	due := now.After(s.lastPrunedAt.Add(pruneInterval))
@@ -443,9 +422,7 @@ func (s *Scheduler) pruneActivityLog(ctx context.Context, now time.Time) {
 	}
 }
 
-// runInstanceCycle performs a single search cycle for one instance. It
-// returns the number of items searched and the total number of
-// upgradeable items.
+// runInstanceCycle performs one search cycle for an instance, returning the searched and total candidate counts.
 func (s *Scheduler) runInstanceCycle(
 	ctx context.Context,
 	inst instance.Instance,
@@ -467,8 +444,6 @@ func (s *Scheduler) runInstanceCycle(
 		return 0, 0
 	}
 
-	// Build the combined candidate list: upgrades first (higher priority),
-	// then missing items if the setting is enabled.
 	items := result.Items
 	if resolved.SearchMissing {
 		items = append(items, result.MissingItems...)
@@ -569,8 +544,7 @@ func (s *Scheduler) runInstanceCycle(
 	return len(searchIDs), totalItems
 }
 
-// logActivity is a convenience wrapper that logs to both zerolog and the
-// activity service.
+// logActivity writes an entry to the activity service, reporting persistence failures via zerolog.
 func (s *Scheduler) logActivity(
 	ctx context.Context,
 	instanceID *uuid.UUID,
@@ -591,12 +565,9 @@ func (s *Scheduler) logActivity(
 	}
 }
 
-// computeNextInterval adjusts the search interval based on how many items
-// remain below their quality cutoff relative to the batch size. The previous
-// interval is tracked so the adjustment accumulates across ticks: repeated
-// empty results progressively double the interval (capped at 4x base) and
-// a persistent heavy backlog progressively halves it (floored at base/4).
-// Normal workloads reset the interval to base.
+// computeNextInterval adapts the search interval to the backlog, accumulating across ticks via previous: empty
+// results progressively double the interval (capped at 4x base), a backlog above twice the batch size progressively
+// halves it (floored at base/4), and anything else resets it to base.
 func computeNextInterval(base, previous time.Duration, totalItems, batchSize int) time.Duration {
 	switch {
 	case totalItems == 0:
@@ -618,10 +589,8 @@ func computeNextInterval(base, previous time.Duration, totalItems, batchSize int
 	}
 }
 
-// inSearchWindow checks whether now falls within the configured search
-// window. Both empty means always allowed. Cross-midnight windows (start >
-// end) are handled. Malformed times are logged and treated as "allow" so
-// a typo does not silently block searches.
+// inSearchWindow reports whether now falls within the configured search window. Both bounds empty means always
+// allowed, start > end spans midnight, and malformed times are logged and treated as allowed.
 func inSearchWindow(start, end string, now time.Time) bool {
 	if start == "" && end == "" {
 		return true
@@ -645,8 +614,7 @@ func inSearchWindow(start, end string, now time.Time) bool {
 	return nowMins >= startMins || nowMins < endMins
 }
 
-// parseHHMM converts "HH:MM" to minutes since midnight, delegating to
-// settings.ParseHHMM for consistent parsing across the codebase.
+// parseHHMM converts "HH:MM" to minutes since midnight, rejecting an empty string.
 func parseHHMM(v string) (int, error) {
 	if v == "" {
 		return 0, fmt.Errorf("empty time string")
@@ -669,9 +637,6 @@ func excludeIDs(all, excluded []int) []int {
 	return result
 }
 
-// newInstanceSchedule constructs an InstanceSchedule with the given
-// parameters. Using a single constructor prevents the disabled and enabled
-// code paths from diverging.
 func newInstanceSchedule(
 	id uuid.UUID, name string, nextAt time.Time, enabled bool, interval time.Duration,
 ) InstanceSchedule {

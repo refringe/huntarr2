@@ -2,11 +2,12 @@ package arr
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
@@ -142,17 +143,20 @@ func TestGetInvalidJSONReturnsError(t *testing.T) {
 func TestGetTimeoutReturnsError(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		time.Sleep(200 * time.Millisecond)
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer srv.Close()
+	synctest.Test(t, func(t *testing.T) {
+		srv := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			time.Sleep(200 * time.Millisecond)
+			w.WriteHeader(http.StatusOK)
+		}))
 
-	c := newClient(srv.URL, "key", 50*time.Millisecond)
-	var dst map[string]any
-	if err := c.get(context.Background(), "/test", &dst); err == nil {
-		t.Fatal("expected timeout error, got nil")
-	}
+		transport := srv.Client().Transport
+		c := newClient(srv.URL, "key", 50*time.Millisecond)
+		c.httpClient.Transport = transport
+		var dst map[string]any
+		if err := c.get(context.Background(), "/test", &dst); err == nil {
+			t.Fatal("expected timeout error, got nil")
+		}
+	})
 }
 
 func TestClientRejectsRedirect(t *testing.T) {

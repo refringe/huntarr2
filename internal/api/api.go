@@ -1,13 +1,11 @@
-// Package api provides REST API handlers for the Huntarr2 web interface and
-// external automation.
+// Package api provides REST API handlers for the Huntarr2 web interface and external automation.
 package api
 
 import (
 	"context"
 	"net/http"
 	"time"
-
-	"github.com/google/uuid"
+	"uuid"
 
 	"github.com/refringe/huntarr2/internal/activity"
 	"github.com/refringe/huntarr2/internal/arr"

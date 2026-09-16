@@ -1,9 +1,11 @@
 package arr
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -11,24 +13,20 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// historyResponse mirrors the paginated JSON envelope returned by all *arr
-// history endpoints.
+// historyResponse mirrors the paginated JSON envelope returned by all *arr history endpoints.
 type historyResponse struct {
 	Records []historyRecordResponse `json:"records"`
 }
 
-// historyEntityRef captures the titleSlug from an entity object embedded in
-// a history record (e.g. movie, series, or artist). Only the slug is needed
-// to construct the detail page URL.
+// historyEntityRef captures the titleSlug from an entity object (movie, series, or artist) embedded in a history
+// record.
 type historyEntityRef struct {
 	TitleSlug string `json:"titleSlug"`
 }
 
-// historyRecordResponse mirrors a single history record in the *arr JSON
-// response. The per-app item ID fields (EpisodeID, MovieID, AlbumID) are
-// only populated for the relevant application type; the others remain zero.
-// The Movie, Series, and Artist fields are populated by the *arr API when
-// the corresponding entity is associated with the history event.
+// historyRecordResponse mirrors a single history record in the *arr JSON response. The per-app item ID fields
+// (EpisodeID, MovieID, AlbumID) and the Movie, Series, and Artist entities are populated only for the relevant
+// application type; the others remain zero.
 type historyRecordResponse struct {
 	ID        int               `json:"id"`
 	Date      time.Time         `json:"date"`
@@ -54,8 +52,7 @@ type historyRecordResponse struct {
 	Artist *historyEntityRef `json:"artist"`
 }
 
-// itemID returns the value of the named item ID field. Supported field
-// names are "episodeId", "movieId", and "albumId".
+// itemID returns the value of the named item ID field ("episodeId", "movieId", or "albumId").
 func (r *historyRecordResponse) itemID(field string) int {
 	switch field {
 	case historyFieldEpisode:
@@ -69,9 +66,7 @@ func (r *historyRecordResponse) itemID(field string) int {
 	}
 }
 
-// detailPath returns the URL path to the item's detail page in the *arr
-// UI, derived from the embedded entity. Only one entity type is populated
-// per record. Returns an empty string when no slug is available.
+// detailPath returns the *arr UI detail page path from the populated entity, or empty when no slug is available.
 func (r *historyRecordResponse) detailPath() string {
 	switch {
 	case r.Movie != nil && r.Movie.TitleSlug != "":
@@ -85,10 +80,8 @@ func (r *historyRecordResponse) detailPath() string {
 	}
 }
 
-// fetchEventPage queries the *arr history endpoint for a single event type
-// and returns the raw records. The eventType parameter is the integer enum
-// value defined by each *arr application (e.g. 3 for downloadFolderImported
-// in Sonarr).
+// fetchEventPage queries the *arr history endpoint for a single event type, given the integer enum value defined
+// by each *arr application (e.g. 3 for downloadFolderImported in Sonarr).
 func fetchEventPage(
 	ctx context.Context,
 	c *client,
@@ -111,18 +104,12 @@ func fetchEventPage(
 	return raw.Records, nil
 }
 
-// fetchArrHistory queries the history endpoint for import events and,
-// separately, for file-deleted events that carry a "reason":"upgrade" flag.
-// The upgrade flag is set by cross-referencing item IDs from the delete
-// query against the import records.
-//
-// The delete event fetch is non-fatal: if it fails, all imports are still
-// tracked as new downloads. Only the upgrade/download distinction is lost.
-//
-// deleteEventType and importEventType are the integer enum values for the
-// relevant history event types in the *arr API (e.g. Sonarr uses 5 for
-// episodeFileDeleted and 3 for downloadFolderImported). itemIDField
-// selects which per-app ID field to compare (e.g. "episodeId").
+// fetchArrHistory queries the history endpoint for import events and, separately, for file-deleted events carrying
+// a "reason":"upgrade" flag, marking an import as an upgrade when its item ID also appears in the delete records.
+// A failed delete fetch is non-fatal: every import is then tracked as a new download. deleteEventType and
+// importEventTypes are the integer enum values used by the *arr API; one page is fetched per import type,
+// duplicates are dropped by record ID, and the merged records are sorted newest first. itemIDField selects the
+// per-app ID field to compare (e.g. "episodeId").
 func fetchArrHistory(
 	ctx context.Context,
 	c *client,
@@ -130,7 +117,7 @@ func fetchArrHistory(
 	since time.Time,
 	pageSize int,
 	deleteEventType int,
-	importEventType int,
+	importEventTypes []int,
 	itemIDField string,
 ) ([]HistoryRecord, error) {
 	upgradedItems := make(map[int]bool)
@@ -151,28 +138,43 @@ func fetchArrHistory(
 			Msg("history: processed delete events")
 	}
 
-	importRecords, err := fetchEventPage(ctx, c, apiVersion, importEventType, pageSize)
-	if err != nil {
-		return nil, fmt.Errorf("fetching import events: %w", err)
+	var records []HistoryRecord
+	seen := make(map[int]bool)
+	fetched := 0
+	for _, eventType := range importEventTypes {
+		importRecords, err := fetchEventPage(ctx, c, apiVersion, eventType, pageSize)
+		if err != nil {
+			return nil, fmt.Errorf("fetching import events (type %d): %w", eventType, err)
+		}
+		fetched += len(importRecords)
+
+		for _, r := range importRecords {
+			if !r.Date.After(since) || seen[r.ID] {
+				continue
+			}
+			seen[r.ID] = true
+			records = append(records, HistoryRecord{
+				ID:         r.ID,
+				Date:       r.Date,
+				ItemLabel:  r.SourceTitle,
+				DetailPath: r.detailPath(),
+				IsUpgrade:  upgradedItems[r.itemID(itemIDField)],
+				Quality:    r.Quality.Quality.Name,
+			})
+		}
 	}
 
-	var records []HistoryRecord
-	for _, r := range importRecords {
-		if !r.Date.After(since) {
-			continue
+	// Each page arrives newest first, but records from separate pages interleave; restore newest-first ordering.
+	slices.SortFunc(records, func(a, b HistoryRecord) int {
+		if c := b.Date.Compare(a.Date); c != 0 {
+			return c
 		}
-		records = append(records, HistoryRecord{
-			ID:         r.ID,
-			Date:       r.Date,
-			ItemLabel:  r.SourceTitle,
-			DetailPath: r.detailPath(),
-			IsUpgrade:  upgradedItems[r.itemID(itemIDField)],
-			Quality:    r.Quality.Quality.Name,
-		})
-	}
+		return cmp.Compare(b.ID, a.ID)
+	})
 
 	log.Debug().
-		Int("importRecords", len(importRecords)).
+		Int("importEventTypes", len(importEventTypes)).
+		Int("importRecords", fetched).
 		Int("afterFilter", len(records)).
 		Time("since", since).
 		Msg("history: processed import events")

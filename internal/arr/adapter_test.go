@@ -2,11 +2,14 @@ package arr
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/refringe/huntarr2/internal/instance"
@@ -44,11 +47,18 @@ func TestAdapterStatus(t *testing.T) {
 			want:    SystemStatus{AppName: "Lidarr", Version: "2.1.0.3901"},
 		},
 		{
-			name:    "whisparr",
-			appType: instance.AppTypeWhisparr,
+			name:    "whisparr-v2",
+			appType: instance.AppTypeWhisparrV2,
 			apiVer:  "v3",
-			resp:    `{"appName":"Whisparr","version":"3.0.0.100"}`,
-			want:    SystemStatus{AppName: "Whisparr", Version: "3.0.0.100"},
+			resp:    `{"appName":"Whisparr","version":"2.0.0.548"}`,
+			want:    SystemStatus{AppName: "Whisparr", Version: "2.0.0.548"},
+		},
+		{
+			name:    "whisparr-v3",
+			appType: instance.AppTypeWhisparrV3,
+			apiVer:  "v3",
+			resp:    `{"appName":"Whisparr","version":"3.3.8.7878"}`,
+			want:    SystemStatus{AppName: "Whisparr", Version: "3.3.8.7878"},
 		},
 	}
 
@@ -92,7 +102,8 @@ func TestAdapterQualityProfiles(t *testing.T) {
 		{"sonarr", instance.AppTypeSonarr, "v3"},
 		{"radarr", instance.AppTypeRadarr, "v3"},
 		{"lidarr", instance.AppTypeLidarr, "v1"},
-		{"whisparr", instance.AppTypeWhisparr, "v3"},
+		{"whisparr-v2", instance.AppTypeWhisparrV2, "v3"},
+		{"whisparr-v3", instance.AppTypeWhisparrV3, "v3"},
 	}
 
 	for _, tc := range tests {
@@ -251,7 +262,8 @@ func TestAdapterSearch(t *testing.T) {
 		{"sonarr", instance.AppTypeSonarr, "v3", "EpisodeSearch", "episodeIds"},
 		{"radarr", instance.AppTypeRadarr, "v3", "MoviesSearch", "movieIds"},
 		{"lidarr", instance.AppTypeLidarr, "v1", "AlbumSearch", "albumIds"},
-		{"whisparr", instance.AppTypeWhisparr, "v3", "EpisodeSearch", "episodeIds"},
+		{"whisparr-v2", instance.AppTypeWhisparrV2, "v3", "EpisodeSearch", "episodeIds"},
+		{"whisparr-v3", instance.AppTypeWhisparrV3, "v3", "MoviesSearch", "movieIds"},
 	}
 
 	for _, tc := range tests {
@@ -271,7 +283,7 @@ func TestAdapterSearch(t *testing.T) {
 				if err != nil {
 					t.Fatalf("reading body: %v", err)
 				}
-				var cmd map[string]json.RawMessage
+				var cmd map[string]jsontext.Value
 				if err := json.Unmarshal(body, &cmd); err != nil {
 					t.Fatalf("unmarshalling body: %v", err)
 				}
@@ -316,7 +328,8 @@ func TestAdapterSearchEmptyIDs(t *testing.T) {
 		instance.AppTypeSonarr,
 		instance.AppTypeRadarr,
 		instance.AppTypeLidarr,
-		instance.AppTypeWhisparr,
+		instance.AppTypeWhisparrV2,
+		instance.AppTypeWhisparrV3,
 	} {
 		t.Run(string(appType), func(t *testing.T) {
 			t.Parallel()
@@ -342,7 +355,10 @@ func TestAdapterHistory(t *testing.T) {
 		{"sonarr", instance.AppTypeSonarr, "v3"},
 		{"radarr", instance.AppTypeRadarr, "v3"},
 		{"lidarr", instance.AppTypeLidarr, "v1"},
-		{"whisparr", instance.AppTypeWhisparr, "v3"},
+		{"whisparr-v2", instance.AppTypeWhisparrV2, "v3"},
+		// The fake server returns the same record for every eventType; whisparr-v3's two import pages rely on
+		// the dedup by record ID.
+		{"whisparr-v3", instance.AppTypeWhisparrV3, "v3"},
 	}
 
 	for _, tc := range tests {
@@ -368,7 +384,7 @@ func TestAdapterHistory(t *testing.T) {
 					},
 				}
 				w.Header().Set("Content-Type", "application/json")
-				json.NewEncoder(w).Encode(resp) //nolint:errcheck // test helper
+				json.MarshalWrite(w, resp) //nolint:errcheck // test helper
 			}))
 			defer srv.Close()
 
@@ -393,4 +409,108 @@ func TestAdapterHistory(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAdapterLibraryItemsAppliesFetchBudget(t *testing.T) {
+	t.Parallel()
+
+	var deadline time.Time
+	var hasDeadline bool
+	cfg := appConfig{
+		name:       "sonarr",
+		apiVersion: "v3",
+		fetchLibrary: func(ctx context.Context, _ *client, _ string) ([]LibraryItem, error) {
+			deadline, hasDeadline = ctx.Deadline()
+			return nil, nil
+		},
+	}
+
+	app := newAdapter("http://example.invalid", "key", 5*time.Second, cfg)
+	if _, err := app.LibraryItems(context.Background()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !hasDeadline {
+		t.Fatal("expected a deadline on the library fetch context")
+	}
+	remaining := time.Until(deadline)
+	if remaining <= libraryFetchBudget-time.Minute || remaining > libraryFetchBudget {
+		t.Errorf("deadline in %v, want within (%v, %v]",
+			remaining, libraryFetchBudget-time.Minute, libraryFetchBudget)
+	}
+}
+
+func TestAdapterLibraryItemsNotBoundByRequestTimeout(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		srv := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			time.Sleep(200 * time.Millisecond)
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`[]`)) //nolint:errcheck // test helper
+		}))
+
+		transport := srv.Client().Transport
+		app, err := NewApp(instance.AppTypeRadarr, srv.URL, "key", 50*time.Millisecond)
+		if err != nil {
+			t.Fatalf("NewApp: %v", err)
+		}
+		app.(*adapter).client.httpClient.Transport = transport
+		items, err := app.LibraryItems(context.Background())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(items) != 0 {
+			t.Errorf("len = %d, want 0", len(items))
+		}
+	})
+}
+
+func TestStatusTimeout(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		requestTimeout time.Duration
+		want           time.Duration
+	}{
+		{"below probe cap", 5 * time.Second, 5 * time.Second},
+		{"above probe cap", 15 * time.Minute, statusProbeTimeout},
+		{"zero", 0, statusProbeTimeout},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := statusTimeout(tc.requestTimeout); got != tc.want {
+				t.Errorf("statusTimeout(%v) = %v, want %v", tc.requestTimeout, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestAdapterQualityProfilesDeadlineExceeded(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		srv := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			time.Sleep(200 * time.Millisecond)
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`[]`)) //nolint:errcheck // test helper
+		}))
+
+		transport := srv.Client().Transport
+		app, err := NewApp(instance.AppTypeSonarr, srv.URL, "key", 50*time.Millisecond)
+		if err != nil {
+			t.Fatalf("NewApp: %v", err)
+		}
+		app.(*adapter).client.httpClient.Transport = transport
+		_, err = app.QualityProfiles(context.Background())
+		if err == nil {
+			t.Fatal("expected an error")
+		}
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Errorf("error = %v, want context.DeadlineExceeded", err)
+		}
+	})
 }

@@ -2,9 +2,12 @@ package arr
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"testing/synctest"
+	"time"
 )
 
 func TestFetchRadarrLibrary(t *testing.T) {
@@ -18,7 +21,9 @@ func TestFetchRadarrLibrary(t *testing.T) {
 		w.Write([]byte(`[` + //nolint:errcheck // test helper
 			`{"id":1,"title":"Inception","year":2010,"qualityProfileId":1,"hasFile":true,"monitored":true,` +
 			`"movieFile":{"quality":{"quality":{"id":7}}}},` +
-			`{"id":2,"title":"The Matrix","year":1999,"qualityProfileId":2,"hasFile":false,"monitored":true}` +
+			`{"id":2,"title":"The Matrix","year":1999,"qualityProfileId":2,"hasFile":false,"monitored":true},` +
+			`{"id":3,"title":"Scene Title","year":0,"titleSlug":"tmdb:12345",` +
+			`"qualityProfileId":1,"hasFile":false,"monitored":true}` +
 			`]`))
 	}))
 	defer srv.Close()
@@ -29,8 +34,8 @@ func TestFetchRadarrLibrary(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if len(items) != 2 {
-		t.Fatalf("len = %d, want 2", len(items))
+	if len(items) != 3 {
+		t.Fatalf("len = %d, want 3", len(items))
 	}
 
 	if items[0].ID != 1 {
@@ -54,6 +59,15 @@ func TestFetchRadarrLibrary(t *testing.T) {
 	}
 	if len(items[1].CurrentQualityIDs) != 0 {
 		t.Errorf("items[1].CurrentQualityIDs = %v, want empty", items[1].CurrentQualityIDs)
+	}
+
+	// Whisparr v3 scenes may carry a zero year and an identifier-style titleSlug; the label omits the year and
+	// the slug passes through.
+	if items[2].Label != "Scene Title" {
+		t.Errorf("items[2].Label = %q, want %q (no year suffix)", items[2].Label, "Scene Title")
+	}
+	if items[2].DetailPath != "/movie/tmdb:12345" {
+		t.Errorf("items[2].DetailPath = %q, want %q", items[2].DetailPath, "/movie/tmdb:12345")
 	}
 }
 
@@ -247,4 +261,82 @@ func TestFetchLidarrLibraryPerAlbumFailure(t *testing.T) {
 	if len(items) != 1 {
 		t.Fatalf("len = %d, want 1 (second album should be skipped)", len(items))
 	}
+}
+
+func TestFetchSonarrLibraryAbortsWhenContextDone(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v3/series", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`[` + //nolint:errcheck // test helper
+			`{"id":10,"title":"Fast Show","qualityProfileId":1,"monitored":true},` +
+			`{"id":20,"title":"Slow Show","qualityProfileId":1,"monitored":true}` +
+			`]`))
+	})
+	mux.HandleFunc("/api/v3/episode", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("seriesId") == "20" {
+			time.Sleep(200 * time.Millisecond)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`[]`)) //nolint:errcheck // test helper
+	})
+	synctest.Test(t, func(t *testing.T) {
+		srv := httptest.NewTestServer(t, mux)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		defer cancel()
+
+		transport := srv.Client().Transport
+		client := newClient(srv.URL, "key", 0)
+		client.httpClient.Transport = transport
+		items, err := fetchSonarrLibrary(ctx, client, "v3")
+		if err == nil {
+			t.Fatalf("expected an error, got %d items", len(items))
+		}
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Errorf("error = %v, want context.DeadlineExceeded", err)
+		}
+	})
+}
+
+func TestFetchLidarrLibraryAbortsWhenContextDone(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/album", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`[` + //nolint:errcheck // test helper
+			`{"id":1,"title":"Fast Album","monitored":true,` +
+			`"artist":{"artistName":"Artist","titleSlug":"artist","qualityProfileId":1},` +
+			`"statistics":{"trackFileCount":1}},` +
+			`{"id":2,"title":"Slow Album","monitored":true,` +
+			`"artist":{"artistName":"Artist","titleSlug":"artist","qualityProfileId":1},` +
+			`"statistics":{"trackFileCount":1}}` +
+			`]`))
+	})
+	mux.HandleFunc("/api/v1/trackfile", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("albumId") == "2" {
+			time.Sleep(200 * time.Millisecond)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`[]`)) //nolint:errcheck // test helper
+	})
+	synctest.Test(t, func(t *testing.T) {
+		srv := httptest.NewTestServer(t, mux)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		defer cancel()
+
+		transport := srv.Client().Transport
+		client := newClient(srv.URL, "key", 0)
+		client.httpClient.Transport = transport
+		items, err := fetchLidarrLibrary(ctx, client, "v1")
+		if err == nil {
+			t.Fatalf("expected an error, got %d items", len(items))
+		}
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Errorf("error = %v, want context.DeadlineExceeded", err)
+		}
+	})
 }

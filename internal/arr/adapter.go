@@ -6,40 +6,47 @@ import (
 	"time"
 )
 
-// cmdNameField is the JSON field naming the command in an *arr command
-// request payload.
+// cmdNameField is the JSON field naming the command in an *arr command request payload.
 const cmdNameField = "name"
+
+// libraryFetchBudget bounds an entire library fetch for a single instance, including the per-series and per-album
+// request loops.
+const libraryFetchBudget = 15 * time.Minute
+
+// statusProbeTimeout caps system/status probe requests.
+const statusProbeTimeout = 10 * time.Second
+
+// transportCeilingMargin is added to libraryFetchBudget to form the client-level transport ceiling.
+const transportCeilingMargin = 30 * time.Second
 
 // fetchLibraryFunc fetches all library items from an *arr instance.
 type fetchLibraryFunc func(ctx context.Context, client *client, apiVersion string) ([]LibraryItem, error)
 
-// fetchHistoryFunc fetches recent import history from an *arr instance,
-// returning only records dated after since.
+// fetchHistoryFunc fetches recent import history from an *arr instance, returning only records dated after since.
 type fetchHistoryFunc func(ctx context.Context, client *client,
 	apiVersion string, since time.Time, pageSize int) ([]HistoryRecord, error)
 
-// appConfig holds the per-application parameters that distinguish one *arr
-// adapter from another.
+// appConfig holds the per-application parameters that distinguish one *arr adapter from another. versionMajor,
+// when non-zero, is the server major version a connection test requires.
 type appConfig struct {
 	name         string
 	apiVersion   string
 	commandKey   string
 	idField      string
+	versionMajor int
 	fetchLibrary fetchLibraryFunc
 	fetchHistory fetchHistoryFunc
 }
 
-// statusResponse is the shared JSON shape returned by all *arr system/status
-// endpoints.
+// statusResponse is the shared JSON shape returned by all *arr system/status endpoints.
 type statusResponse struct {
 	AppName string `json:"appName"`
 	Version string `json:"version"`
 }
 
-// profileEntryResponse mirrors the recursive JSON structure of a quality
-// profile entry returned by all *arr qualityprofile endpoints. The
-// top-level ID field is populated for group entries and is used by the
-// profile's Cutoff to reference a group.
+// profileEntryResponse mirrors the recursive JSON structure of a quality profile entry returned by all *arr
+// qualityprofile endpoints. The top-level ID field is populated for group entries and is referenced by the
+// profile's Cutoff.
 type profileEntryResponse struct {
 	ID      int `json:"id"`
 	Quality *struct {
@@ -51,8 +58,7 @@ type profileEntryResponse struct {
 	Allowed bool                   `json:"allowed"`
 }
 
-// qualityProfileResponse is the shared JSON shape returned by all *arr
-// qualityprofile endpoints.
+// qualityProfileResponse is the shared JSON shape returned by all *arr qualityprofile endpoints.
 type qualityProfileResponse struct {
 	ID             int                    `json:"id"`
 	Name           string                 `json:"name"`
@@ -61,27 +67,46 @@ type qualityProfileResponse struct {
 	Items          []profileEntryResponse `json:"items"`
 }
 
-// commandResponse is the shared JSON shape returned by all *arr command
-// endpoints.
+// commandResponse is the shared JSON shape returned by all *arr command endpoints.
 type commandResponse struct {
 	ID int `json:"id"`
 }
 
-// adapter implements App for any *arr application by parameterising the
-// differences through appConfig.
+// adapter implements App for any *arr application by parameterising the differences through appConfig.
 type adapter struct {
-	client *client
-	cfg    appConfig
+	client         *client
+	cfg            appConfig
+	requestTimeout time.Duration
 }
 
-func newAdapter(baseURL, apiKey string, timeout time.Duration, cfg appConfig) App {
+func newAdapter(baseURL, apiKey string, requestTimeout time.Duration, cfg appConfig) App {
 	return &adapter{
-		client: newClient(baseURL, apiKey, timeout),
-		cfg:    cfg,
+		client:         newClient(baseURL, apiKey, libraryFetchBudget+transportCeilingMargin),
+		cfg:            cfg,
+		requestTimeout: requestTimeout,
 	}
 }
 
+// requestContext bounds ctx by the instance's per-request timeout; a non-positive timeout applies no extra bound.
+func (a *adapter) requestContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	if a.requestTimeout <= 0 {
+		return context.WithCancel(ctx)
+	}
+	return context.WithTimeout(ctx, a.requestTimeout)
+}
+
+// statusTimeout returns the deadline for system/status probes: the per-request timeout capped at statusProbeTimeout.
+func statusTimeout(requestTimeout time.Duration) time.Duration {
+	if requestTimeout <= 0 {
+		return statusProbeTimeout
+	}
+	return min(requestTimeout, statusProbeTimeout)
+}
+
 func (a *adapter) Status(ctx context.Context) (SystemStatus, error) {
+	ctx, cancel := context.WithTimeout(ctx, statusTimeout(a.requestTimeout))
+	defer cancel()
+
 	var raw statusResponse
 	path := fmt.Sprintf("/api/%s/system/status", a.cfg.apiVersion)
 	if err := a.client.get(ctx, path, &raw); err != nil {
@@ -91,6 +116,9 @@ func (a *adapter) Status(ctx context.Context) (SystemStatus, error) {
 }
 
 func (a *adapter) QualityProfiles(ctx context.Context) ([]QualityProfile, error) {
+	ctx, cancel := a.requestContext(ctx)
+	defer cancel()
+
 	var raw []qualityProfileResponse
 	path := fmt.Sprintf("/api/%s/qualityprofile", a.cfg.apiVersion)
 	if err := a.client.get(ctx, path, &raw); err != nil {
@@ -110,8 +138,6 @@ func (a *adapter) QualityProfiles(ctx context.Context) ([]QualityProfile, error)
 	return profiles, nil
 }
 
-// convertProfileEntries converts the JSON response entries into domain
-// ProfileEntry values.
 func convertProfileEntries(raw []profileEntryResponse) []ProfileEntry {
 	entries := make([]ProfileEntry, len(raw))
 	for i, r := range raw {
@@ -132,14 +158,24 @@ func convertProfileEntries(raw []profileEntryResponse) []ProfileEntry {
 }
 
 func (a *adapter) LibraryItems(ctx context.Context) ([]LibraryItem, error) {
+	ctx, cancel := context.WithTimeout(ctx, libraryFetchBudget)
+	defer cancel()
+
 	return a.cfg.fetchLibrary(ctx, a.client, a.cfg.apiVersion)
 }
 
 func (a *adapter) History(ctx context.Context, since time.Time, pageSize int) ([]HistoryRecord, error) {
+	// Both event-page requests share one per-request timeout window.
+	ctx, cancel := a.requestContext(ctx)
+	defer cancel()
+
 	return a.cfg.fetchHistory(ctx, a.client, a.cfg.apiVersion, since, pageSize)
 }
 
 func (a *adapter) Search(ctx context.Context, itemIDs []int) (SearchResult, error) {
+	ctx, cancel := a.requestContext(ctx)
+	defer cancel()
+
 	if len(itemIDs) == 0 {
 		return SearchResult{}, fmt.Errorf("%s search: no item IDs provided", a.cfg.name)
 	}

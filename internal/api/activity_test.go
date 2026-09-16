@@ -2,13 +2,12 @@ package api
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
-
-	"github.com/google/uuid"
+	"uuid"
 
 	"github.com/refringe/huntarr2/internal/activity"
 )
@@ -84,7 +83,7 @@ func TestHandleListActivity(t *testing.T) {
 	}
 
 	var body activityListResponse
-	if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
+	if err := json.UnmarshalRead(w.Body, &body); err != nil {
 		t.Fatalf("decoding: %v", err)
 	}
 	if len(body.Entries) != 1 {
@@ -116,7 +115,7 @@ func TestHandleListActivityFiltered(t *testing.T) {
 	}
 
 	var body activityListResponse
-	if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
+	if err := json.UnmarshalRead(w.Body, &body); err != nil {
 		t.Fatalf("decoding: %v", err)
 	}
 	if len(body.Entries) != 1 {

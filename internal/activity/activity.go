@@ -1,12 +1,11 @@
-// Package activity provides a structured activity log stored in SQLite. The
-// scheduler writes entries as it runs; the UI reads them for display.
+// Package activity provides a structured activity log stored in SQLite. The scheduler writes entries as it runs;
+// the UI reads them for display.
 package activity
 
 import (
 	"errors"
 	"time"
-
-	"github.com/google/uuid"
+	"uuid"
 )
 
 // Level classifies the severity of an activity log entry.

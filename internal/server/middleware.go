@@ -12,23 +12,16 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// maxRequestBodyBytes is the maximum size in bytes for request bodies. 1 MB
-// is generous for JSON payloads used by this application.
+// maxRequestBodyBytes is the maximum size in bytes for request bodies.
 const maxRequestBodyBytes = 1 << 20
 
-// staticCacheHeader is the Cache-Control value for vendored static assets
-// whose filenames contain a version number (e.g. alpine-3.16.1.min.js).
-// One year is safe because the filename changes with every version bump.
+// staticCacheHeader is the Cache-Control value for vendored static assets whose filenames contain a version number.
 const staticCacheHeader = "public, max-age=31536000, immutable"
 
-// appCacheHeader is the Cache-Control value for the application's own
-// static assets (logs.js, settings.js, etc.) whose filenames do not
-// contain version numbers. The browser must revalidate on every request
-// so that rebuilds are picked up immediately.
+// appCacheHeader is the Cache-Control value for the application's own unversioned static assets.
 const appCacheHeader = "no-cache"
 
-// versionedFile matches filenames that contain a numeric version
-// component such as "3.16.1" or "4.3.3".
+// versionedFile matches filenames that contain a numeric version component such as "3.16.1".
 var versionedFile = regexp.MustCompile(`\d+\.\d+`)
 
 func withMiddleware(h http.Handler, username, password string) http.Handler {
@@ -37,18 +30,13 @@ func withMiddleware(h http.Handler, username, password string) http.Handler {
 	)
 }
 
-// withSecurityHeaders sets standard security headers on every response to
-// prevent common browser-side attacks.
 func withSecurityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("X-Frame-Options", "DENY")
 		h.Set("Referrer-Policy", "strict-origin-when-cross-origin")
-		// unsafe-inline is required for Alpine.js inline event handlers (x-on,
-		// @click). unsafe-eval is required because Alpine.js evaluates x-data,
-		// x-show, and x-model expressions via AsyncFunction. Both are acceptable
-		// compromises for a self-hosted management tool.
+		// Alpine.js needs unsafe-inline for x-on handlers and unsafe-eval for x-data/x-show/x-model expressions.
 		h.Set("Content-Security-Policy",
 			"default-src 'self'; "+
 				"script-src 'self' 'unsafe-inline' 'unsafe-eval'; "+
@@ -57,16 +45,13 @@ func withSecurityHeaders(next http.Handler) http.Handler {
 	})
 }
 
-// withStaticCacheHeaders sets cache headers for static assets. Vendored
-// files whose names contain a version number (e.g. alpine-3.16.1.min.js)
-// receive an immutable, one-year cache. Application files without a
-// version number (e.g. logs.js) receive no-cache so the browser
-// revalidates on every request.
+// withStaticCacheHeaders serves versioned filenames (e.g. alpine-3.16.1.min.js) with an immutable one-year cache
+// and unversioned application files with no-cache.
 func withStaticCacheHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		base := r.URL.Path
-		if i := strings.LastIndex(base, "/"); i >= 0 {
-			base = base[i+1:]
+		if _, after, ok := strings.CutLast(base, "/"); ok {
+			base = after
 		}
 		header := appCacheHeader
 		if versionedFile.MatchString(base) {
@@ -79,8 +64,7 @@ func withStaticCacheHeaders(next http.Handler) http.Handler {
 	})
 }
 
-// staticCacheWriter injects the Cache-Control header at WriteHeader time,
-// but only for successful (2xx/3xx) responses.
+// staticCacheWriter injects the Cache-Control header at WriteHeader time, only for responses below 400.
 type staticCacheWriter struct {
 	http.ResponseWriter
 	cacheHeader string
@@ -108,9 +92,6 @@ func (w *staticCacheWriter) Unwrap() http.ResponseWriter {
 	return w.ResponseWriter
 }
 
-// withMaxBodySize wraps request bodies with http.MaxBytesReader to prevent
-// clients from sending arbitrarily large payloads. Requests that exceed the
-// limit receive 413 Request Entity Too Large.
 func withMaxBodySize(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
@@ -118,10 +99,7 @@ func withMaxBodySize(next http.Handler) http.Handler {
 	})
 }
 
-// withBasicAuth returns a handler that requires HTTP Basic Authentication. If
-// both username and password are empty, the handler is returned unmodified so
-// there is zero overhead when auth is disabled. The /api/health path is always
-// exempt to allow container health probes.
+// withBasicAuth requires HTTP Basic Authentication when a username or password is set; /api/health is always exempt.
 func withBasicAuth(next http.Handler, username, password string) http.Handler {
 	if username == "" && password == "" {
 		return next
@@ -189,9 +167,7 @@ func withPanicRecovery(next http.Handler) http.Handler {
 	})
 }
 
-// responseWriter wraps http.ResponseWriter to capture the status code. It
-// implements Unwrap so that http.ResponseController can reach the underlying
-// writer for Flush, Hijack, and other optional interfaces.
+// responseWriter captures the status code; Unwrap lets http.ResponseController reach the underlying writer.
 type responseWriter struct {
 	http.ResponseWriter
 	status      int
@@ -211,10 +187,6 @@ func (rw *responseWriter) WriteHeader(code int) {
 	rw.ResponseWriter.WriteHeader(code)
 }
 
-// Write delegates to the underlying ResponseWriter. When no explicit
-// WriteHeader call has been made, Go implicitly sends 200 OK on the
-// first Write. The status field already defaults to 200 (set in the
-// constructor), so no update is needed here.
 func (rw *responseWriter) Write(b []byte) (int, error) {
 	if !rw.wroteHeader {
 		rw.wroteHeader = true

@@ -10,8 +10,7 @@ import (
 	"github.com/rs/zerolog"
 )
 
-// parser accumulates parse errors so all invalid values can be reported at
-// once rather than failing on the first one.
+// parser accumulates parse errors from environment variable reads.
 type parser struct {
 	errs []error
 }
@@ -42,9 +41,8 @@ func (p *parser) logLevel(key string, fallback zerolog.Level) zerolog.Level {
 	return lvl
 }
 
-// encryptionKey reads a 32-byte key from the environment. It accepts either a
-// 64-character hex string or a base64-encoded string. If the variable is
-// unset or cannot be decoded to exactly 32 bytes, an error is recorded.
+// encryptionKey reads a 32-byte key from the environment as either a 64-character hex string or a base64-encoded
+// string, recording an error when the variable is unset or does not decode to exactly 32 bytes.
 func (p *parser) encryptionKey(key string) []byte {
 	raw := os.Getenv(key)
 	if raw == "" {

@@ -2,11 +2,13 @@ package arr
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-
-	"github.com/google/uuid"
+	"testing/synctest"
+	"time"
+	"uuid"
 
 	"github.com/refringe/huntarr2/internal/instance"
 )
@@ -39,7 +41,7 @@ func (f *fakeRepository) Get(_ context.Context, id uuid.UUID) (instance.Instance
 }
 
 func (f *fakeRepository) Create(_ context.Context, inst *instance.Instance) error {
-	if inst.ID == uuid.Nil {
+	if inst.ID == uuid.Nil() {
 		inst.ID = uuid.New()
 	}
 	f.instances = append(f.instances, *inst)
@@ -329,4 +331,120 @@ func TestSearchCycleInstanceNotFound(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for missing instance, got nil")
 	}
+}
+
+func TestTestConnectionVersionCheck(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		appType      instance.AppType
+		version      string
+		wantMismatch bool
+	}{
+		{"whisparr-v3 against v2 server", instance.AppTypeWhisparrV3, "2.0.0.548", true},
+		{"whisparr-v3 against v3 server", instance.AppTypeWhisparrV3, "3.3.8.7878", false},
+		{"whisparr-v2 against v2 server", instance.AppTypeWhisparrV2, "2.0.0.548", false},
+		{"whisparr-v2 against v3 server", instance.AppTypeWhisparrV2, "3.3.8.7878", true},
+		{"unparsable version skips the check", instance.AppTypeWhisparrV3, "nightly", false},
+		{"sonarr accepts any version", instance.AppTypeSonarr, "99.0.0.1", false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.Write([]byte(`{"appName":"Whisparr","version":"` + tc.version + `"}`)) //nolint:errcheck // test helper
+			}))
+			defer srv.Close()
+
+			svc := NewService(&fakeRepository{})
+			err := svc.TestConnection(context.Background(), tc.appType, srv.URL, "key", 5000)
+			if tc.wantMismatch {
+				if !errors.Is(err, ErrVersionMismatch) {
+					t.Fatalf("err = %v, want ErrVersionMismatch", err)
+				}
+			} else if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+func TestMajorVersion(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		version string
+		want    int
+	}{
+		{"3.3.8.7878", 3},
+		{"2.0.0.548", 2},
+		{"10.1", 10},
+		{"", 0},
+		{"beta", 0},
+		{"-1.0", 0},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.version, func(t *testing.T) {
+			t.Parallel()
+
+			if got := majorVersion(tc.version); got != tc.want {
+				t.Errorf("majorVersion(%q) = %d, want %d", tc.version, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestUpgradeableSlowLibraryUnderBudgetSucceeds(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v3/qualityprofile", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`[]`)) //nolint:errcheck // test helper
+	})
+	mux.HandleFunc("/api/v3/movie", func(w http.ResponseWriter, _ *http.Request) {
+		// Slower than the instance's per-request timeout, which must not bound the library request class.
+		time.Sleep(300 * time.Millisecond)
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`[]`)) //nolint:errcheck // test helper
+	})
+	synctest.Test(t, func(t *testing.T) {
+		srv := httptest.NewTestServer(t, mux)
+		transport := srv.Client().Transport
+
+		id := uuid.New()
+		repo := &fakeRepository{
+			instances: []instance.Instance{
+				{
+					ID:        id,
+					Name:      "Slow Radarr",
+					AppType:   instance.AppTypeRadarr,
+					BaseURL:   srv.URL,
+					APIKey:    "testkey",
+					TimeoutMs: 100,
+				},
+			},
+		}
+
+		svc := NewService(repo)
+		svc.newApp = func(appType instance.AppType, baseURL, apiKey string, timeout time.Duration) (App, error) {
+			app, err := NewApp(appType, baseURL, apiKey, timeout)
+			if err == nil {
+				app.(*adapter).client.httpClient.Transport = transport
+			}
+			return app, err
+		}
+		result, err := svc.Upgradeable(context.Background(), id)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.Stats.LibraryTotal != 0 {
+			t.Errorf("LibraryTotal = %d, want 0", result.Stats.LibraryTotal)
+		}
+	})
 }

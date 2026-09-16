@@ -5,12 +5,10 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	"github.com/google/uuid"
+	"uuid"
 )
 
-// fakeRepository implements Repository in memory for testing the interface
-// contract.
+// fakeRepository implements Repository in memory for testing the interface contract.
 type fakeRepository struct {
 	mu      sync.Mutex
 	records map[uuid.UUID]map[int]time.Time
@@ -196,7 +194,6 @@ func TestRecordSearchesUpdatesTimestamp(t *testing.T) {
 	}
 	repo.mu.Unlock()
 
-	// Verify it has expired.
 	coolingDown, err := repo.FilterCoolingDown(
 		ctx, instID, []int{101}, time.Hour)
 	if err != nil {
@@ -206,12 +203,10 @@ func TestRecordSearchesUpdatesTimestamp(t *testing.T) {
 		t.Fatalf("expected 0 cooling down (expired), got %d", len(coolingDown))
 	}
 
-	// Re-record the search, which should update the timestamp.
 	if err := repo.RecordSearches(ctx, instID, []int{101}); err != nil {
 		t.Fatalf("RecordSearches: %v", err)
 	}
 
-	// Now it should be cooling down again.
 	coolingDown, err = repo.FilterCoolingDown(
 		ctx, instID, []int{101}, time.Hour)
 	if err != nil {

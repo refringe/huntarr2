@@ -6,24 +6,18 @@ import (
 	"errors"
 	"fmt"
 	"time"
-
-	"github.com/google/uuid"
+	"uuid"
 
 	"github.com/refringe/huntarr2/internal/encrypt"
 )
 
-// SQLiteRepository implements Repository using a SQLite database. API keys
-// are encrypted at rest using AES-256-GCM.
+// SQLiteRepository implements Repository using a SQLite database; API keys are encrypted at rest with AES-256-GCM.
 type SQLiteRepository struct {
 	db            *sql.DB
 	encryptionKey []byte
 }
 
-// NewSQLiteRepository returns a SQLiteRepository backed by db. The
-// encryptionKey must be exactly 32 bytes and is used to encrypt and decrypt
-// API keys stored in the database. It panics if encryptionKey is not the
-// required length because an invalid key represents a configuration error
-// that must be caught at startup rather than at query time.
+// NewSQLiteRepository returns a SQLiteRepository backed by db, panicking unless encryptionKey is exactly 32 bytes.
 func NewSQLiteRepository(db *sql.DB, encryptionKey []byte) *SQLiteRepository {
 	if len(encryptionKey) != 32 {
 		panic("instance.NewSQLiteRepository: encryptionKey must be exactly 32 bytes")
@@ -45,8 +39,7 @@ func (r *SQLiteRepository) List(ctx context.Context) ([]Instance, error) {
 	return r.collectInstances(rows)
 }
 
-// ListByType returns all instances of the given application type ordered by
-// name.
+// ListByType returns all instances of the given application type ordered by name.
 func (r *SQLiteRepository) ListByType(ctx context.Context, appType AppType) ([]Instance, error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, name, app_type, base_url, api_key_enc,
@@ -61,8 +54,7 @@ func (r *SQLiteRepository) ListByType(ctx context.Context, appType AppType) ([]I
 	return r.collectInstances(rows)
 }
 
-// Get returns the instance with the given ID. It returns ErrNotFound when
-// no matching row exists.
+// Get returns the instance with the given ID, or ErrNotFound when no matching row exists.
 func (r *SQLiteRepository) Get(ctx context.Context, id uuid.UUID) (Instance, error) {
 	row := r.db.QueryRowContext(ctx,
 		`SELECT id, name, app_type, base_url, api_key_enc,
@@ -80,15 +72,14 @@ func (r *SQLiteRepository) Get(ctx context.Context, id uuid.UUID) (Instance, err
 	return inst, nil
 }
 
-// Create inserts a new instance. If inst.ID is the zero value, a UUID is
-// generated in Go. Timestamps are set to the current time.
+// Create inserts a new instance, generating a UUID when inst.ID is zero and setting timestamps to the current time.
 func (r *SQLiteRepository) Create(ctx context.Context, inst *Instance) error {
 	encryptedKey, err := encrypt.Encrypt(inst.APIKey, r.encryptionKey)
 	if err != nil {
 		return fmt.Errorf("encrypting API key: %w", err)
 	}
 
-	if inst.ID == uuid.Nil {
+	if inst.ID == uuid.Nil() {
 		inst.ID = uuid.New()
 	}
 
@@ -141,8 +132,7 @@ func (r *SQLiteRepository) Update(ctx context.Context, inst *Instance) error {
 	return nil
 }
 
-// Delete removes the instance with the given ID. It returns ErrNotFound
-// when no matching row exists.
+// Delete removes the instance with the given ID, returning ErrNotFound when no matching row exists.
 func (r *SQLiteRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	result, err := r.db.ExecContext(ctx,
 		`DELETE FROM instances WHERE id = ?`, id.String())
@@ -160,8 +150,7 @@ func (r *SQLiteRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
-// scanInstance reads a single Instance from a *sql.Row and decrypts the
-// API key.
+// scanInstance reads a single Instance from a *sql.Row and decrypts the API key.
 func (r *SQLiteRepository) scanInstance(row *sql.Row) (Instance, error) {
 	var inst Instance
 	var idStr, appType, createdAt, updatedAt string
@@ -175,8 +164,7 @@ func (r *SQLiteRepository) scanInstance(row *sql.Row) (Instance, error) {
 	return r.hydrateInstance(inst, idStr, appType, createdAt, updatedAt)
 }
 
-// collectInstances reads all rows into a slice of Instance values,
-// decrypting each API key.
+// collectInstances reads all rows into a slice of Instance values, decrypting each API key.
 func (r *SQLiteRepository) collectInstances(rows *sql.Rows) ([]Instance, error) {
 	defer rows.Close() //nolint:errcheck // checked via rows.Err below
 
@@ -206,8 +194,7 @@ func (r *SQLiteRepository) collectInstances(rows *sql.Rows) ([]Instance, error) 
 	return instances, nil
 }
 
-// hydrateInstance parses string fields from SQLite into typed fields and
-// decrypts the API key.
+// hydrateInstance parses string fields from SQLite into typed fields and decrypts the API key.
 func (r *SQLiteRepository) hydrateInstance(
 	inst Instance,
 	idStr, appType, createdAt, updatedAt string,

@@ -6,19 +6,16 @@ import (
 	"errors"
 	"fmt"
 	"time"
-
-	"github.com/google/uuid"
+	"uuid"
 )
 
-// PollTracker abstracts poll state persistence so consumers can be tested
-// without a database.
+// PollTracker persists and queries per-instance history poll timestamps.
 type PollTracker interface {
 	LastPolled(ctx context.Context, instanceID uuid.UUID) (time.Time, error)
 	RecordPoll(ctx context.Context, instanceID uuid.UUID, polledAt time.Time) error
 }
 
-// SQLitePollTracker implements PollTracker using SQLite, persisted in the
-// history_poll_state table.
+// SQLitePollTracker implements PollTracker using SQLite, persisted in the history_poll_state table.
 type SQLitePollTracker struct {
 	db *sql.DB
 }
@@ -28,9 +25,8 @@ func NewSQLitePollTracker(db *sql.DB) *SQLitePollTracker {
 	return &SQLitePollTracker{db: db}
 }
 
-// LastPolled returns the timestamp of the most recent history poll for the
-// given instance. If the instance has never been polled, the zero time is
-// returned.
+// LastPolled returns the timestamp of the most recent history poll for the given instance, or the zero time when
+// the instance has never been polled.
 func (r *SQLitePollTracker) LastPolled(ctx context.Context, instanceID uuid.UUID) (time.Time, error) {
 	const q = `SELECT last_polled
 	             FROM history_poll_state

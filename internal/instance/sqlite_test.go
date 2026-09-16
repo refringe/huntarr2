@@ -5,14 +5,12 @@ import (
 	"crypto/rand"
 	"errors"
 	"testing"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/refringe/huntarr2/internal/database/testdb"
 )
 
-// randomKey generates a cryptographically random 32-byte encryption key
-// suitable for AES-256-GCM. It fails the test immediately if the system
-// random source is unavailable.
+// randomKey generates a cryptographically random 32-byte AES-256-GCM key, failing the test on error.
 func randomKey(t *testing.T) []byte {
 	t.Helper()
 
@@ -23,9 +21,7 @@ func randomKey(t *testing.T) []byte {
 	return key
 }
 
-// newTestInstance returns an Instance populated with valid fields for
-// testing. Each call uses a unique name to avoid collisions when multiple
-// instances are created within a single test.
+// newTestInstance returns an Instance populated with valid fields; each call uses a unique name.
 func newTestInstance(name string, appType AppType) *Instance {
 	return &Instance{
 		Name:      name,
@@ -49,7 +45,7 @@ func TestSQLiteRepository_CreateAndGet(t *testing.T) {
 		t.Fatalf("Create: %v", err)
 	}
 
-	if inst.ID == uuid.Nil {
+	if inst.ID == uuid.Nil() {
 		t.Fatal("expected non-nil UUID after Create")
 	}
 	if inst.CreatedAt.IsZero() {
@@ -101,7 +97,7 @@ func TestSQLiteRepository_CreateGeneratesUUID(t *testing.T) {
 		t.Fatalf("Create b: %v", err)
 	}
 
-	if a.ID == uuid.Nil || b.ID == uuid.Nil {
+	if a.ID == uuid.Nil() || b.ID == uuid.Nil() {
 		t.Fatal("expected non-nil UUIDs")
 	}
 	if a.ID == b.ID {
@@ -205,7 +201,7 @@ func TestSQLiteRepository_ListByType(t *testing.T) {
 		t.Errorf("expected 1 radarr instance, got %d", len(radarrs))
 	}
 
-	whisparrs, err := repo.ListByType(ctx, AppTypeWhisparr)
+	whisparrs, err := repo.ListByType(ctx, AppTypeWhisparrV3)
 	if err != nil {
 		t.Fatalf("ListByType whisparr: %v", err)
 	}
@@ -325,7 +321,7 @@ func TestSQLiteRepository_APIKeyEncryptedAtRest(t *testing.T) {
 	ctx := context.Background()
 
 	plaintext := "super-secret-api-key-12345"
-	inst := newTestInstance("Encrypted Key Test", AppTypeWhisparr)
+	inst := newTestInstance("Encrypted Key Test", AppTypeWhisparrV2)
 	inst.APIKey = plaintext
 
 	if err := repo.Create(ctx, inst); err != nil {
@@ -367,7 +363,7 @@ func TestSQLiteRepository_CRUDLifecycle(t *testing.T) {
 	if err := repo.Create(ctx, inst); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
-	if inst.ID == uuid.Nil {
+	if inst.ID == uuid.Nil() {
 		t.Fatal("expected non-nil UUID after Create")
 	}
 

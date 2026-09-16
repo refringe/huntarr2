@@ -6,15 +6,13 @@ import (
 	"database/sql"
 	"testing"
 	"time"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/refringe/huntarr2/internal/database/testdb"
 	"github.com/refringe/huntarr2/internal/instance"
 )
 
-// createTestInstance inserts a minimal instance into the database and returns
-// its UUID. This satisfies the foreign key constraint on activity_log entries
-// that reference an instance.
+// createTestInstance inserts a minimal instance and returns its UUID, satisfying the activity_log foreign key.
 func createTestInstance(t *testing.T, db *sql.DB, name string) uuid.UUID {
 	t.Helper()
 
@@ -38,8 +36,7 @@ func createTestInstance(t *testing.T, db *sql.DB, name string) uuid.UUID {
 	return inst.ID
 }
 
-// seedEntry is a helper that inserts an activity log entry and fails the
-// test if the insert returns an error.
+// seedEntry inserts an activity log entry, failing the test on error.
 func seedEntry(t *testing.T, repo *SQLiteRepository, e *Entry) {
 	t.Helper()
 	if err := repo.Create(context.Background(), e); err != nil {
@@ -62,7 +59,7 @@ func TestSQLiteCreateAndList(t *testing.T) {
 		t.Fatalf("Create: %v", err)
 	}
 
-	if entry.ID == uuid.Nil {
+	if entry.ID == uuid.Nil() {
 		t.Error("expected Create to populate entry ID")
 	}
 	if entry.CreatedAt.IsZero() {

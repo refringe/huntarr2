@@ -1,10 +1,8 @@
 package arr
 
-// qualityRank builds a map from quality/group ID to ordinal rank within
-// a profile. Higher rank means higher quality. Qualities within a group
-// share the same rank, and the group's own ID also maps to that rank so
-// that a profile's Cutoff field can reference either a quality or a
-// group. Only allowed entries are included.
+// qualityRank builds a map from quality/group ID to ordinal rank within a profile; higher rank means higher
+// quality. Qualities within a group share the same rank, the group's own ID also maps to that rank, and only
+// allowed entries are included.
 func qualityRank(profile QualityProfile) map[int]int {
 	ranks := make(map[int]int)
 	for i, entry := range profile.Items {
@@ -15,8 +13,6 @@ func qualityRank(profile QualityProfile) map[int]int {
 			ranks[entry.Quality.ID] = i
 			continue
 		}
-		// Group entry: map the group ID and each child quality ID to
-		// the same rank.
 		if entry.ID != 0 {
 			ranks[entry.ID] = i
 		}
@@ -29,10 +25,7 @@ func qualityRank(profile QualityProfile) map[int]int {
 	return ranks
 }
 
-// cutoffRank returns the ordinal rank of the profile's Cutoff quality
-// (or group) within the given rank map. Returns -1 if the cutoff ID is
-// not present in the allowed entries, which causes all items in that
-// profile to be treated as not upgradeable.
+// cutoffRank returns the rank of the profile's Cutoff entry, or -1 when it is not among the allowed entries.
 func cutoffRank(profile QualityProfile, ranks map[int]int) int {
 	if rank, ok := ranks[profile.Cutoff]; ok {
 		return rank
@@ -40,13 +33,10 @@ func cutoffRank(profile QualityProfile, ranks map[int]int) int {
 	return -1
 }
 
-// filterUpgradeable returns items whose current quality rank is below
-// the profile's cutoff. It skips items without files, unmonitored
-// items, items with no known quality IDs, and items whose profile has
-// UpgradeAllowed set to false. For items with multiple quality IDs
-// (Lidarr albums with multiple track files) the lowest ranked quality
-// is used as the representative. The returned FilterStats report how
-// many items were excluded at each stage.
+// filterUpgradeable returns items whose current quality rank is below the profile's cutoff, skipping items without
+// files, unmonitored items, items with no known quality IDs, and items whose profile blocks upgrades. Items with
+// multiple quality IDs (Lidarr albums) are represented by their lowest ranked quality. The returned FilterStats
+// report how many items were excluded at each stage.
 func filterUpgradeable(
 	items []LibraryItem,
 	profiles map[int]QualityProfile,
@@ -91,9 +81,6 @@ func filterUpgradeable(
 			continue
 		}
 
-		// Find the minimum rank across all quality IDs for this item.
-		// For movies and episodes there is exactly one; for Lidarr
-		// albums there may be several.
 		lowest := -1
 		for _, qid := range item.CurrentQualityIDs {
 			rank, known := pc.ranks[qid]
@@ -125,10 +112,7 @@ func filterUpgradeable(
 	return result, stats
 }
 
-// filterMissing returns monitored items that have no file at all. These
-// are candidates for an initial download rather than a quality upgrade.
-// No quality profile checks are needed because there is nothing to
-// compare against.
+// filterMissing returns monitored items that have no file at all.
 func filterMissing(items []LibraryItem) []UpgradeItem {
 	var result []UpgradeItem
 	for _, item := range items {
