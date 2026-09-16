@@ -3,7 +3,7 @@
 </p>
 
 [![Build](https://github.com/refringe/huntarr2/actions/workflows/tests.yml/badge.svg)](https://github.com/refringe/huntarr2/actions/workflows/tests.yml)
-[![Go](https://img.shields.io/badge/Go-1.26-00ADD8.svg)](https://go.dev/)
+[![Go](https://img.shields.io/badge/Go-1.27-00ADD8.svg)](https://go.dev/)
 [![Licence](https://img.shields.io/badge/licence-AGPL--3.0-blue.svg)](LICENSE)
 
 Huntarr2 tells your \*arr apps to search for missing items and quality upgrades so you don't have to do it manually.
@@ -13,15 +13,13 @@ It connects to Sonarr, Radarr, Lidarr, and Whisparr (v2 and v3), finds monitored
 ## How it works
 
 1. You add your \*arr instances (URL + API key) through the web UI.
-2. A scheduler runs on a configurable tick interval (default 30 seconds).
-3. Each tick, it checks your \*arr libraries for monitored items with no file and items below their quality cutoff.
-4. It tells the \*arr app to search for those items (missing first downloads and quality upgrades).
-5. Per-item cooldowns prevent the same item from being searched repeatedly.
-6. The scheduler adapts its pace to avoid hammering the \*arr APIs.
+2. On each instance's schedule, Huntarr2 checks its library for monitored items with no file and items below their quality cutoff.
+3. It tells the \*arr app to search for a batch of those items, skipping anything searched recently.
+4. The pace adapts: empty results back off, large backlogs speed up, and an hourly search limit caps API load.
+
+Batch size, cooldowns, search intervals, hourly limits, and search windows are all configurable globally or per instance.
 
 Huntarr2 does not download anything itself. It just tells your existing \*arr apps to look for items you are missing and better versions of what you already have.
-
-*And no, it doesn't leak your API keys. ;)*
 
 ## Running it
 
@@ -109,7 +107,7 @@ huntarr.example.com {
 
 ## Building from source
 
-Requires Go 1.26 or later.
+Requires Go 1.27 or later.
 
 ```bash
 make build       # produces bin/huntarr2
