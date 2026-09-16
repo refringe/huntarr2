@@ -49,10 +49,7 @@ func (c *client) get(ctx context.Context, path string, dst any) error {
 	if err != nil {
 		return fmt.Errorf("requesting %s: %w", path, err)
 	}
-	defer func() {
-		io.Copy(io.Discard, resp.Body) //nolint:errcheck // best-effort body drain
-		resp.Body.Close()              //nolint:errcheck // best-effort close
-	}()
+	defer resp.Body.Close() //nolint:errcheck // best-effort close
 
 	if resp.StatusCode != http.StatusOK {
 		return responseError(resp, path)
@@ -86,10 +83,7 @@ func (c *client) post(ctx context.Context, path string, body, dst any) error {
 	if err != nil {
 		return fmt.Errorf("requesting %s: %w", path, err)
 	}
-	defer func() {
-		io.Copy(io.Discard, resp.Body) //nolint:errcheck // best-effort body drain
-		resp.Body.Close()              //nolint:errcheck // best-effort close
-	}()
+	defer resp.Body.Close() //nolint:errcheck // best-effort close
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
 		return responseError(resp, path)
