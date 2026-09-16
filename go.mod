@@ -6,7 +6,7 @@ require (
 	github.com/a-h/templ v0.3.1020
 	github.com/pressly/goose/v3 v3.28.0
 	github.com/rs/zerolog v1.35.1
-	modernc.org/sqlite v1.57.0
+	modernc.org/sqlite v1.58.0
 )
 
 require (
