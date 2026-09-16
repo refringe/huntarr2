@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"testing/synctest"
 	"time"
 	"uuid"
 
@@ -224,6 +225,21 @@ func newTestScheduler(
 	return s
 }
 
+// runBudget is the fake-clock time each test lets the scheduler loop run for: four 50ms ticks.
+const runBudget = 200 * time.Millisecond
+
+// runScheduler drives sched.Run inside a synctest bubble, cancelling the run after runBudget of fake-clock time.
+func runScheduler(t *testing.T, sched *Scheduler) error {
+	t.Helper()
+	var err error
+	synctest.Test(t, func(_ *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), runBudget)
+		defer cancel()
+		err = sched.Run(ctx)
+	})
+	return err
+}
+
 func TestStopsOnContextCancellation(t *testing.T) {
 	sched := newTestScheduler(t,
 		&fakeInstanceLister{},
@@ -234,10 +250,7 @@ func TestStopsOnContextCancellation(t *testing.T) {
 		newFakePollTracker(),
 	)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
-	defer cancel()
-
-	err := sched.Run(ctx)
+	err := runScheduler(t, sched)
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Errorf("err = %v, want context.DeadlineExceeded", err)
 	}
@@ -271,10 +284,7 @@ func TestSkipsDisabledInstances(t *testing.T) {
 		newFakePollTracker(),
 	)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
-	defer cancel()
-
-	_ = sched.Run(ctx)
+	_ = runScheduler(t, sched)
 
 	if len(arrSearch.searchCalls) != 0 {
 		t.Errorf("searchCalls = %d, want 0 (disabled)", len(arrSearch.searchCalls))
@@ -309,10 +319,7 @@ func TestFiltersCooldownItems(t *testing.T) {
 		newFakePollTracker(),
 	)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
-	defer cancel()
-
-	_ = sched.Run(ctx)
+	_ = runScheduler(t, sched)
 
 	if len(arrSearch.searchCalls) == 0 {
 		t.Fatal("expected at least one search call")
@@ -379,10 +386,7 @@ func TestRespectsRateLimit(t *testing.T) {
 		newFakePollTracker(),
 	)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
-	defer cancel()
-
-	_ = sched.Run(ctx)
+	_ = runScheduler(t, sched)
 
 	if len(arrSearch.searchCalls) > 1 {
 		t.Errorf("searchCalls = %d, want <= 1 (rate limited)", len(arrSearch.searchCalls))
@@ -416,10 +420,7 @@ func TestHappyPathEndToEnd(t *testing.T) {
 		newFakePollTracker(),
 	)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
-	defer cancel()
-
-	_ = sched.Run(ctx)
+	_ = runScheduler(t, sched)
 
 	if len(arrSearch.searchCalls) == 0 {
 		t.Fatal("expected at least one search call")
@@ -498,10 +499,7 @@ func TestBatchSizeLimitsSearch(t *testing.T) {
 		newFakePollTracker(),
 	)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
-	defer cancel()
-
-	_ = sched.Run(ctx)
+	_ = runScheduler(t, sched)
 
 	if len(arrSearch.searchCalls) == 0 {
 		t.Fatal("expected at least one search call")
@@ -678,10 +676,7 @@ func TestStatusPopulatesInstanceDetails(t *testing.T) {
 		newFakePollTracker(),
 	)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
-	defer cancel()
-
-	_ = sched.Run(ctx)
+	_ = runScheduler(t, sched)
 
 	st := sched.Status()
 	if len(st.Instances) != 1 {
@@ -726,10 +721,7 @@ func TestStatusSortedByInstanceName(t *testing.T) {
 		newFakePollTracker(),
 	)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
-	defer cancel()
-
-	_ = sched.Run(ctx)
+	_ = runScheduler(t, sched)
 
 	st := sched.Status()
 	if len(st.Instances) != 3 {
@@ -768,10 +760,7 @@ func TestStatusShowsDisabledInstances(t *testing.T) {
 		newFakePollTracker(),
 	)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
-	defer cancel()
-
-	_ = sched.Run(ctx)
+	_ = runScheduler(t, sched)
 
 	st := sched.Status()
 	if len(st.Instances) != 1 {
@@ -844,10 +833,7 @@ func TestPollUpgradeHistoryDetectsUpgrades(t *testing.T) {
 		newFakePollTracker(),
 	)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
-	defer cancel()
-
-	_ = sched.Run(ctx)
+	_ = runScheduler(t, sched)
 
 	var found bool
 	for _, e := range actLog.entries {
@@ -890,10 +876,7 @@ func TestPollUpgradeHistoryDetectsDownloads(t *testing.T) {
 		newFakePollTracker(),
 	)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
-	defer cancel()
-
-	_ = sched.Run(ctx)
+	_ = runScheduler(t, sched)
 
 	var found bool
 	for _, e := range actLog.entries {
@@ -935,10 +918,7 @@ func TestMissingItemsIncludedWhenEnabled(t *testing.T) {
 		newFakePollTracker(),
 	)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
-	defer cancel()
-
-	_ = sched.Run(ctx)
+	_ = runScheduler(t, sched)
 
 	if len(arrSearch.searchCalls) == 0 {
 		t.Fatal("expected at least one search call")
@@ -976,10 +956,7 @@ func TestMissingItemsExcludedWhenDisabled(t *testing.T) {
 		newFakePollTracker(),
 	)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
-	defer cancel()
-
-	_ = sched.Run(ctx)
+	_ = runScheduler(t, sched)
 
 	if len(arrSearch.searchCalls) != 0 {
 		t.Errorf("searchCalls = %d, want 0 (missing disabled)", len(arrSearch.searchCalls))
@@ -1015,10 +992,7 @@ func TestUpgradeItemsPrioritisedOverMissing(t *testing.T) {
 		newFakePollTracker(),
 	)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
-	defer cancel()
-
-	_ = sched.Run(ctx)
+	_ = runScheduler(t, sched)
 
 	if len(arrSearch.searchCalls) == 0 {
 		t.Fatal("expected at least one search call")
@@ -1059,15 +1033,16 @@ func TestPollUpgradeHistoryThrottled(t *testing.T) {
 		polls,
 	)
 
-	// Simulate that history was just polled.
-	sched.mu.Lock()
-	sched.lastHistoryPoll = time.Now()
-	sched.mu.Unlock()
+	synctest.Test(t, func(_ *testing.T) {
+		// Simulate that history was just polled.
+		sched.mu.Lock()
+		sched.lastHistoryPoll = time.Now()
+		sched.mu.Unlock()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
-	defer cancel()
-
-	_ = sched.Run(ctx)
+		ctx, cancel := context.WithTimeout(context.Background(), runBudget)
+		defer cancel()
+		_ = sched.Run(ctx)
+	})
 
 	if len(polls.pollCalls) != 0 {
 		t.Errorf("pollCalls = %d, want 0 (should be throttled)", len(polls.pollCalls))
@@ -1116,10 +1091,7 @@ func TestNextSearchAtUsesCycleEndTime(t *testing.T) {
 		newFakePollTracker(),
 	)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
-	defer cancel()
-
-	_ = sched.Run(ctx)
+	_ = runScheduler(t, sched)
 
 	if arrSearch.upgradeableReturnedAt.IsZero() {
 		t.Fatal("expected at least one cycle to run")
