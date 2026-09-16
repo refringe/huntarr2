@@ -31,11 +31,12 @@ type InstanceStatus struct {
 // Service aggregates data from all *arr instances (Sonarr, Radarr, Lidarr, Whisparr v2/v3).
 type Service struct {
 	instances instance.Repository
+	newApp    func(appType instance.AppType, baseURL, apiKey string, timeout time.Duration) (App, error)
 }
 
 // NewService returns a Service that reads *arr instances from the given repository.
 func NewService(instances instance.Repository) *Service {
-	return &Service{instances: instances}
+	return &Service{instances: instances, newApp: NewApp}
 }
 
 // Status fetches connection status for every instance concurrently, marking unreachable instances as disconnected.
@@ -54,7 +55,7 @@ func (s *Service) Status(ctx context.Context) ([]InstanceStatus, error) {
 			AppType: inst.AppType,
 		}
 
-		app, err := NewApp(inst.AppType, inst.BaseURL, inst.APIKey, instanceTimeout(inst))
+		app, err := s.newApp(inst.AppType, inst.BaseURL, inst.APIKey, instanceTimeout(inst))
 		if err != nil {
 			log.Warn().Err(err).Str("instance", inst.Name).
 				Msg("unsupported app type for status check")
@@ -81,7 +82,7 @@ func (s *Service) Status(ctx context.Context) ([]InstanceStatus, error) {
 // ErrVersionMismatch when the server's major version does not match one the application type demands.
 func (s *Service) TestConnection(ctx context.Context, appType instance.AppType, baseURL, apiKey string, timeoutMs int) error {
 	timeout := time.Duration(timeoutMs) * time.Millisecond
-	app, err := NewApp(appType, baseURL, apiKey, timeout)
+	app, err := s.newApp(appType, baseURL, apiKey, timeout)
 	if err != nil {
 		return fmt.Errorf("creating app client: %w", err)
 	}
@@ -210,7 +211,7 @@ func (s *Service) appForInstance(ctx context.Context, id uuid.UUID) (App, error)
 	if err != nil {
 		return nil, fmt.Errorf("fetching instance %s: %w", id, err)
 	}
-	app, err := NewApp(inst.AppType, inst.BaseURL, inst.APIKey, instanceTimeout(inst))
+	app, err := s.newApp(inst.AppType, inst.BaseURL, inst.APIKey, instanceTimeout(inst))
 	if err != nil {
 		return nil, fmt.Errorf("building app for instance %s: %w", id, err)
 	}

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/refringe/huntarr2/internal/instance"
@@ -441,24 +442,27 @@ func TestAdapterLibraryItemsAppliesFetchBudget(t *testing.T) {
 func TestAdapterLibraryItemsNotBoundByRequestTimeout(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		time.Sleep(200 * time.Millisecond)
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`[]`)) //nolint:errcheck // test helper
-	}))
-	defer srv.Close()
+	synctest.Test(t, func(t *testing.T) {
+		srv := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			time.Sleep(200 * time.Millisecond)
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`[]`)) //nolint:errcheck // test helper
+		}))
 
-	app, err := NewApp(instance.AppTypeRadarr, srv.URL, "key", 50*time.Millisecond)
-	if err != nil {
-		t.Fatalf("NewApp: %v", err)
-	}
-	items, err := app.LibraryItems(context.Background())
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(items) != 0 {
-		t.Errorf("len = %d, want 0", len(items))
-	}
+		transport := srv.Client().Transport
+		app, err := NewApp(instance.AppTypeRadarr, srv.URL, "key", 50*time.Millisecond)
+		if err != nil {
+			t.Fatalf("NewApp: %v", err)
+		}
+		app.(*adapter).client.httpClient.Transport = transport
+		items, err := app.LibraryItems(context.Background())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(items) != 0 {
+			t.Errorf("len = %d, want 0", len(items))
+		}
+	})
 }
 
 func TestStatusTimeout(t *testing.T) {
@@ -488,22 +492,25 @@ func TestStatusTimeout(t *testing.T) {
 func TestAdapterQualityProfilesDeadlineExceeded(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		time.Sleep(200 * time.Millisecond)
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`[]`)) //nolint:errcheck // test helper
-	}))
-	defer srv.Close()
+	synctest.Test(t, func(t *testing.T) {
+		srv := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			time.Sleep(200 * time.Millisecond)
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`[]`)) //nolint:errcheck // test helper
+		}))
 
-	app, err := NewApp(instance.AppTypeSonarr, srv.URL, "key", 50*time.Millisecond)
-	if err != nil {
-		t.Fatalf("NewApp: %v", err)
-	}
-	_, err = app.QualityProfiles(context.Background())
-	if err == nil {
-		t.Fatal("expected an error")
-	}
-	if !errors.Is(err, context.DeadlineExceeded) {
-		t.Errorf("error = %v, want context.DeadlineExceeded", err)
-	}
+		transport := srv.Client().Transport
+		app, err := NewApp(instance.AppTypeSonarr, srv.URL, "key", 50*time.Millisecond)
+		if err != nil {
+			t.Fatalf("NewApp: %v", err)
+		}
+		app.(*adapter).client.httpClient.Transport = transport
+		_, err = app.QualityProfiles(context.Background())
+		if err == nil {
+			t.Fatal("expected an error")
+		}
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Errorf("error = %v, want context.DeadlineExceeded", err)
+		}
+	})
 }

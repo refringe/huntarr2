@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
@@ -280,20 +281,23 @@ func TestFetchSonarrLibraryAbortsWhenContextDone(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`[]`)) //nolint:errcheck // test helper
 	})
-	srv := httptest.NewServer(mux)
-	defer srv.Close()
+	synctest.Test(t, func(t *testing.T) {
+		srv := httptest.NewTestServer(t, mux)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-	defer cancel()
+		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		defer cancel()
 
-	client := newClient(srv.URL, "key", 0)
-	items, err := fetchSonarrLibrary(ctx, client, "v3")
-	if err == nil {
-		t.Fatalf("expected an error, got %d items", len(items))
-	}
-	if !errors.Is(err, context.DeadlineExceeded) {
-		t.Errorf("error = %v, want context.DeadlineExceeded", err)
-	}
+		transport := srv.Client().Transport
+		client := newClient(srv.URL, "key", 0)
+		client.httpClient.Transport = transport
+		items, err := fetchSonarrLibrary(ctx, client, "v3")
+		if err == nil {
+			t.Fatalf("expected an error, got %d items", len(items))
+		}
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Errorf("error = %v, want context.DeadlineExceeded", err)
+		}
+	})
 }
 
 func TestFetchLidarrLibraryAbortsWhenContextDone(t *testing.T) {
@@ -318,18 +322,21 @@ func TestFetchLidarrLibraryAbortsWhenContextDone(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`[]`)) //nolint:errcheck // test helper
 	})
-	srv := httptest.NewServer(mux)
-	defer srv.Close()
+	synctest.Test(t, func(t *testing.T) {
+		srv := httptest.NewTestServer(t, mux)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-	defer cancel()
+		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		defer cancel()
 
-	client := newClient(srv.URL, "key", 0)
-	items, err := fetchLidarrLibrary(ctx, client, "v1")
-	if err == nil {
-		t.Fatalf("expected an error, got %d items", len(items))
-	}
-	if !errors.Is(err, context.DeadlineExceeded) {
-		t.Errorf("error = %v, want context.DeadlineExceeded", err)
-	}
+		transport := srv.Client().Transport
+		client := newClient(srv.URL, "key", 0)
+		client.httpClient.Transport = transport
+		items, err := fetchLidarrLibrary(ctx, client, "v1")
+		if err == nil {
+			t.Fatalf("expected an error, got %d items", len(items))
+		}
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Errorf("error = %v, want context.DeadlineExceeded", err)
+		}
+	})
 }

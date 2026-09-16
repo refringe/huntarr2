@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"testing/synctest"
 	"time"
 	"uuid"
 
@@ -412,29 +413,38 @@ func TestUpgradeableSlowLibraryUnderBudgetSucceeds(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`[]`)) //nolint:errcheck // test helper
 	})
-	srv := httptest.NewServer(mux)
-	defer srv.Close()
+	synctest.Test(t, func(t *testing.T) {
+		srv := httptest.NewTestServer(t, mux)
+		transport := srv.Client().Transport
 
-	id := uuid.New()
-	repo := &fakeRepository{
-		instances: []instance.Instance{
-			{
-				ID:        id,
-				Name:      "Slow Radarr",
-				AppType:   instance.AppTypeRadarr,
-				BaseURL:   srv.URL,
-				APIKey:    "testkey",
-				TimeoutMs: 100,
+		id := uuid.New()
+		repo := &fakeRepository{
+			instances: []instance.Instance{
+				{
+					ID:        id,
+					Name:      "Slow Radarr",
+					AppType:   instance.AppTypeRadarr,
+					BaseURL:   srv.URL,
+					APIKey:    "testkey",
+					TimeoutMs: 100,
+				},
 			},
-		},
-	}
+		}
 
-	svc := NewService(repo)
-	result, err := svc.Upgradeable(context.Background(), id)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if result.Stats.LibraryTotal != 0 {
-		t.Errorf("LibraryTotal = %d, want 0", result.Stats.LibraryTotal)
-	}
+		svc := NewService(repo)
+		svc.newApp = func(appType instance.AppType, baseURL, apiKey string, timeout time.Duration) (App, error) {
+			app, err := NewApp(appType, baseURL, apiKey, timeout)
+			if err == nil {
+				app.(*adapter).client.httpClient.Transport = transport
+			}
+			return app, err
+		}
+		result, err := svc.Upgradeable(context.Background(), id)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.Stats.LibraryTotal != 0 {
+			t.Errorf("LibraryTotal = %d, want 0", result.Stats.LibraryTotal)
+		}
+	})
 }
