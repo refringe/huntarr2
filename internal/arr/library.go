@@ -7,8 +7,11 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// fetchRadarrLibrary retrieves all movies from a Radarr instance and
-// returns them as LibraryItems. Each movie maps to one LibraryItem.
+// fetchRadarrLibrary retrieves all movies from a Radarr (or Whisparr v3)
+// instance and returns them as LibraryItems. Each movie maps to one
+// LibraryItem. Whisparr v3 models scenes as movies: its titleSlug is an
+// identifier such as "tmdb:<id>" (still valid in the /movie/ detail path)
+// and its year may be zero.
 func fetchRadarrLibrary(
 	ctx context.Context,
 	c *client,
@@ -42,9 +45,13 @@ func fetchRadarrLibrary(
 		if m.MovieFile != nil {
 			qualityIDs = []int{m.MovieFile.Quality.Quality.ID}
 		}
+		label := m.Title
+		if m.Year != 0 {
+			label = fmt.Sprintf("%s (%d)", m.Title, m.Year)
+		}
 		items[i] = LibraryItem{
 			ID:                m.ID,
-			Label:             fmt.Sprintf("%s (%d)", m.Title, m.Year),
+			Label:             label,
 			DetailPath:        fmt.Sprintf("/movie/%s", m.TitleSlug),
 			QualityProfileID:  m.QualityProfileID,
 			CurrentQualityIDs: qualityIDs,
@@ -55,7 +62,7 @@ func fetchRadarrLibrary(
 	return items, nil
 }
 
-// fetchSonarrLibrary retrieves all episodes from a Sonarr (or Whisparr)
+// fetchSonarrLibrary retrieves all episodes from a Sonarr (or Whisparr v2)
 // instance and returns them as LibraryItems. It fetches all series first,
 // then fetches episodes per monitored series. Per-series failures are
 // logged and skipped to maintain resilience.

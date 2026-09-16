@@ -20,7 +20,9 @@ func TestFetchRadarrLibrary(t *testing.T) {
 		w.Write([]byte(`[` + //nolint:errcheck // test helper
 			`{"id":1,"title":"Inception","year":2010,"qualityProfileId":1,"hasFile":true,"monitored":true,` +
 			`"movieFile":{"quality":{"quality":{"id":7}}}},` +
-			`{"id":2,"title":"The Matrix","year":1999,"qualityProfileId":2,"hasFile":false,"monitored":true}` +
+			`{"id":2,"title":"The Matrix","year":1999,"qualityProfileId":2,"hasFile":false,"monitored":true},` +
+			`{"id":3,"title":"Scene Title","year":0,"titleSlug":"tmdb:12345",` +
+			`"qualityProfileId":1,"hasFile":false,"monitored":true}` +
 			`]`))
 	}))
 	defer srv.Close()
@@ -31,8 +33,8 @@ func TestFetchRadarrLibrary(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if len(items) != 2 {
-		t.Fatalf("len = %d, want 2", len(items))
+	if len(items) != 3 {
+		t.Fatalf("len = %d, want 3", len(items))
 	}
 
 	if items[0].ID != 1 {
@@ -56,6 +58,15 @@ func TestFetchRadarrLibrary(t *testing.T) {
 	}
 	if len(items[1].CurrentQualityIDs) != 0 {
 		t.Errorf("items[1].CurrentQualityIDs = %v, want empty", items[1].CurrentQualityIDs)
+	}
+
+	// Whisparr v3 scenes may carry a zero year and an identifier-style
+	// titleSlug; the label omits the year and the slug passes through.
+	if items[2].Label != "Scene Title" {
+		t.Errorf("items[2].Label = %q, want %q (no year suffix)", items[2].Label, "Scene Title")
+	}
+	if items[2].DetailPath != "/movie/tmdb:12345" {
+		t.Errorf("items[2].DetailPath = %q, want %q", items[2].DetailPath, "/movie/tmdb:12345")
 	}
 }
 

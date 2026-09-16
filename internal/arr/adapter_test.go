@@ -45,11 +45,18 @@ func TestAdapterStatus(t *testing.T) {
 			want:    SystemStatus{AppName: "Lidarr", Version: "2.1.0.3901"},
 		},
 		{
-			name:    "whisparr",
-			appType: instance.AppTypeWhisparr,
+			name:    "whisparr-v2",
+			appType: instance.AppTypeWhisparrV2,
 			apiVer:  "v3",
-			resp:    `{"appName":"Whisparr","version":"3.0.0.100"}`,
-			want:    SystemStatus{AppName: "Whisparr", Version: "3.0.0.100"},
+			resp:    `{"appName":"Whisparr","version":"2.0.0.548"}`,
+			want:    SystemStatus{AppName: "Whisparr", Version: "2.0.0.548"},
+		},
+		{
+			name:    "whisparr-v3",
+			appType: instance.AppTypeWhisparrV3,
+			apiVer:  "v3",
+			resp:    `{"appName":"Whisparr","version":"3.3.8.7878"}`,
+			want:    SystemStatus{AppName: "Whisparr", Version: "3.3.8.7878"},
 		},
 	}
 
@@ -93,7 +100,8 @@ func TestAdapterQualityProfiles(t *testing.T) {
 		{"sonarr", instance.AppTypeSonarr, "v3"},
 		{"radarr", instance.AppTypeRadarr, "v3"},
 		{"lidarr", instance.AppTypeLidarr, "v1"},
-		{"whisparr", instance.AppTypeWhisparr, "v3"},
+		{"whisparr-v2", instance.AppTypeWhisparrV2, "v3"},
+		{"whisparr-v3", instance.AppTypeWhisparrV3, "v3"},
 	}
 
 	for _, tc := range tests {
@@ -252,7 +260,8 @@ func TestAdapterSearch(t *testing.T) {
 		{"sonarr", instance.AppTypeSonarr, "v3", "EpisodeSearch", "episodeIds"},
 		{"radarr", instance.AppTypeRadarr, "v3", "MoviesSearch", "movieIds"},
 		{"lidarr", instance.AppTypeLidarr, "v1", "AlbumSearch", "albumIds"},
-		{"whisparr", instance.AppTypeWhisparr, "v3", "EpisodeSearch", "episodeIds"},
+		{"whisparr-v2", instance.AppTypeWhisparrV2, "v3", "EpisodeSearch", "episodeIds"},
+		{"whisparr-v3", instance.AppTypeWhisparrV3, "v3", "MoviesSearch", "movieIds"},
 	}
 
 	for _, tc := range tests {
@@ -317,7 +326,8 @@ func TestAdapterSearchEmptyIDs(t *testing.T) {
 		instance.AppTypeSonarr,
 		instance.AppTypeRadarr,
 		instance.AppTypeLidarr,
-		instance.AppTypeWhisparr,
+		instance.AppTypeWhisparrV2,
+		instance.AppTypeWhisparrV3,
 	} {
 		t.Run(string(appType), func(t *testing.T) {
 			t.Parallel()
@@ -343,7 +353,10 @@ func TestAdapterHistory(t *testing.T) {
 		{"sonarr", instance.AppTypeSonarr, "v3"},
 		{"radarr", instance.AppTypeRadarr, "v3"},
 		{"lidarr", instance.AppTypeLidarr, "v1"},
-		{"whisparr", instance.AppTypeWhisparr, "v3"},
+		{"whisparr-v2", instance.AppTypeWhisparrV2, "v3"},
+		// The fake server returns the same record for every eventType, so
+		// whisparr-v3's two import pages rely on the dedup by record ID.
+		{"whisparr-v3", instance.AppTypeWhisparrV3, "v3"},
 	}
 
 	for _, tc := range tests {

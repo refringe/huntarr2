@@ -10,19 +10,28 @@ import (
 
 // *arr history event type integer IDs. Each application defines its own
 // enum; the values below are extracted from the respective source
-// repositories and must match the server-side definitions.
+// repositories (src/NzbDrone.Core/History in each) and must match the
+// server-side definitions.
 const (
-	// Sonarr / Whisparr (EpisodeHistoryEventType).
+	// Sonarr / Whisparr v2 (EpisodeHistoryEventType).
 	sonarrImported    = 3 // downloadFolderImported
 	sonarrFileDeleted = 5 // episodeFileDeleted
 
-	// Radarr (MovieHistoryEventType).
-	radarrImported    = 2 // downloadFolderImported
-	radarrFileDeleted = 4 // movieFileDeleted
+	// Radarr (MovieHistoryEventType): note 2 is a deprecated slot and 4
+	// is downloadFailed.
+	radarrImported    = 3 // downloadFolderImported
+	radarrFileDeleted = 6 // movieFileDeleted
 
-	// Lidarr (EntityHistoryEventType).
-	lidarrImported    = 3 // downloadImported
-	lidarrFileDeleted = 4 // trackFileDeleted
+	// Lidarr (EntityHistoryEventType): note 4 is downloadFailed.
+	lidarrImported    = 3 // trackFileImported
+	lidarrFileDeleted = 5 // trackFileDeleted
+
+	// Whisparr v3 "Eros" (MovieHistoryEventType): Radarr's enum plus
+	// diskScanImported, a second import-completed event written when a
+	// disk scan finds a new in-place file.
+	whisparrV3Imported     = 3  // downloadFolderImported
+	whisparrV3DiskImported = 10 // diskScanImported
+	whisparrV3FileDeleted  = 6  // movieFileDeleted
 )
 
 // Per-application command names, search ID field names, and history item
@@ -43,13 +52,14 @@ const (
 
 // newHistoryFunc returns a fetchHistoryFunc that binds the per-app event
 // type IDs and item ID field into a closure matching the fetchHistoryFunc
-// signature.
-func newHistoryFunc(deleteEventType, importEventType int, itemIDField string) fetchHistoryFunc {
+// signature. Applications with more than one import-completed event type
+// list them all in importEventTypes.
+func newHistoryFunc(deleteEventType int, importEventTypes []int, itemIDField string) fetchHistoryFunc {
 	return func(ctx context.Context, c *client, apiVersion string,
 		since time.Time, pageSize int,
 	) ([]HistoryRecord, error) {
 		return fetchArrHistory(ctx, c, apiVersion, since, pageSize,
-			deleteEventType, importEventType, itemIDField)
+			deleteEventType, importEventTypes, itemIDField)
 	}
 }
 
@@ -62,7 +72,7 @@ var appConfigs = map[instance.AppType]appConfig{
 		commandKey:   cmdEpisodeSearch,
 		idField:      idFieldEpisodes,
 		fetchLibrary: fetchSonarrLibrary,
-		fetchHistory: newHistoryFunc(sonarrFileDeleted, sonarrImported, historyFieldEpisode),
+		fetchHistory: newHistoryFunc(sonarrFileDeleted, []int{sonarrImported}, historyFieldEpisode),
 	},
 	instance.AppTypeRadarr: {
 		name:         string(instance.AppTypeRadarr),
@@ -70,7 +80,7 @@ var appConfigs = map[instance.AppType]appConfig{
 		commandKey:   cmdMoviesSearch,
 		idField:      idFieldMovies,
 		fetchLibrary: fetchRadarrLibrary,
-		fetchHistory: newHistoryFunc(radarrFileDeleted, radarrImported, historyFieldMovie),
+		fetchHistory: newHistoryFunc(radarrFileDeleted, []int{radarrImported}, historyFieldMovie),
 	},
 	instance.AppTypeLidarr: {
 		name:         string(instance.AppTypeLidarr),
@@ -78,16 +88,30 @@ var appConfigs = map[instance.AppType]appConfig{
 		commandKey:   cmdAlbumSearch,
 		idField:      idFieldAlbums,
 		fetchLibrary: fetchLidarrLibrary,
-		fetchHistory: newHistoryFunc(lidarrFileDeleted, lidarrImported, historyFieldAlbum),
+		fetchHistory: newHistoryFunc(lidarrFileDeleted, []int{lidarrImported}, historyFieldAlbum),
 	},
-	// Whisparr shares Sonarr's episode-based structure and API.
-	instance.AppTypeWhisparr: {
-		name:         string(instance.AppTypeWhisparr),
+	// Whisparr v2 shares Sonarr's episode-based structure and API. Both
+	// Whisparr generations report appName "Whisparr" on system/status, so
+	// versionMajor lets a connection test tell them apart.
+	instance.AppTypeWhisparrV2: {
+		name:         string(instance.AppTypeWhisparrV2),
 		apiVersion:   "v3",
 		commandKey:   cmdEpisodeSearch,
 		idField:      idFieldEpisodes,
+		versionMajor: 2,
 		fetchLibrary: fetchSonarrLibrary,
-		fetchHistory: newHistoryFunc(sonarrFileDeleted, sonarrImported, historyFieldEpisode),
+		fetchHistory: newHistoryFunc(sonarrFileDeleted, []int{sonarrImported}, historyFieldEpisode),
+	},
+	// Whisparr v3 "Eros" is Radarr-shaped: scenes are modelled as movies.
+	instance.AppTypeWhisparrV3: {
+		name:         string(instance.AppTypeWhisparrV3),
+		apiVersion:   "v3",
+		commandKey:   cmdMoviesSearch,
+		idField:      idFieldMovies,
+		versionMajor: 3,
+		fetchLibrary: fetchRadarrLibrary,
+		fetchHistory: newHistoryFunc(whisparrV3FileDeleted,
+			[]int{whisparrV3Imported, whisparrV3DiskImported}, historyFieldMovie),
 	},
 }
 

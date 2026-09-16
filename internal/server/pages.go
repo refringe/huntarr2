@@ -5,7 +5,6 @@ import (
 	"context"
 	"net/http"
 	"slices"
-	"strings"
 	"sync"
 	"time"
 
@@ -17,16 +16,6 @@ import (
 	"github.com/refringe/huntarr2/internal/scheduler"
 	"github.com/refringe/huntarr2/web/templates/pages"
 )
-
-// capitalise returns s with the first byte upper-cased. This is suitable for
-// ASCII identifiers such as application type names (e.g. "sonarr" to
-// "Sonarr"). It is not safe for arbitrary multi-byte Unicode input.
-func capitalise(s string) string {
-	if s == "" {
-		return s
-	}
-	return strings.ToUpper(s[:1]) + s[1:]
-}
 
 // handleHomePage gathers data from all services and renders the dashboard.
 func (s *Server) handleHomePage(w http.ResponseWriter, r *http.Request) {
@@ -59,9 +48,7 @@ func (s *Server) fetchHomeData(ctx context.Context) pages.HomeData {
 	instMap := make(map[string]instance.Instance, len(insts))
 	for _, inst := range insts {
 		instMap[inst.ID.String()] = inst
-		switch inst.AppType {
-		case instance.AppTypeSonarr, instance.AppTypeRadarr,
-			instance.AppTypeLidarr, instance.AppTypeWhisparr:
+		if inst.AppType.Valid() {
 			data.HasArrInstances = true
 		}
 	}
@@ -143,7 +130,7 @@ func (s *Server) fetchHomeData(ctx context.Context) pages.HomeData {
 		data.ArrInstances = append(data.ArrInstances,
 			pages.HomeArrInstance{
 				Name:      st.Name,
-				AppType:   capitalise(string(st.AppType)),
+				AppType:   st.AppType.Label(),
 				Connected: st.Connected,
 				Version:   st.Version,
 			})
@@ -191,7 +178,7 @@ func aggregateStats(
 					if name == "" {
 						name = inst.Name
 					}
-					appType = capitalise(string(inst.AppType))
+					appType = inst.AppType.Label()
 				}
 			}
 			acc = &instAcc{name: name, appType: appType}
@@ -276,7 +263,7 @@ func (s *Server) handleSettingsPage(w http.ResponseWriter, r *http.Request) {
 			data.Instances = append(data.Instances, pages.SettingsInstance{
 				ID:      inst.ID.String(),
 				Name:    inst.Name,
-				AppType: capitalise(string(inst.AppType)),
+				AppType: inst.AppType.Label(),
 			})
 		}
 	}

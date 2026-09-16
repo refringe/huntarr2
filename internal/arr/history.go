@@ -1,9 +1,11 @@
 package arr
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -119,10 +121,13 @@ func fetchEventPage(
 // The delete event fetch is non-fatal: if it fails, all imports are still
 // tracked as new downloads. Only the upgrade/download distinction is lost.
 //
-// deleteEventType and importEventType are the integer enum values for the
+// deleteEventType and importEventTypes are the integer enum values for the
 // relevant history event types in the *arr API (e.g. Sonarr uses 5 for
-// episodeFileDeleted and 3 for downloadFolderImported). itemIDField
-// selects which per-app ID field to compare (e.g. "episodeId").
+// episodeFileDeleted and 3 for downloadFolderImported). Applications with
+// more than one import-completed event list them all; one page is fetched
+// per type, duplicates are dropped by record ID, and the merged records
+// are sorted newest first. itemIDField selects which per-app ID field to
+// compare (e.g. "episodeId").
 func fetchArrHistory(
 	ctx context.Context,
 	c *client,
@@ -130,7 +135,7 @@ func fetchArrHistory(
 	since time.Time,
 	pageSize int,
 	deleteEventType int,
-	importEventType int,
+	importEventTypes []int,
 	itemIDField string,
 ) ([]HistoryRecord, error) {
 	upgradedItems := make(map[int]bool)
@@ -151,28 +156,44 @@ func fetchArrHistory(
 			Msg("history: processed delete events")
 	}
 
-	importRecords, err := fetchEventPage(ctx, c, apiVersion, importEventType, pageSize)
-	if err != nil {
-		return nil, fmt.Errorf("fetching import events: %w", err)
+	var records []HistoryRecord
+	seen := make(map[int]bool)
+	fetched := 0
+	for _, eventType := range importEventTypes {
+		importRecords, err := fetchEventPage(ctx, c, apiVersion, eventType, pageSize)
+		if err != nil {
+			return nil, fmt.Errorf("fetching import events (type %d): %w", eventType, err)
+		}
+		fetched += len(importRecords)
+
+		for _, r := range importRecords {
+			if !r.Date.After(since) || seen[r.ID] {
+				continue
+			}
+			seen[r.ID] = true
+			records = append(records, HistoryRecord{
+				ID:         r.ID,
+				Date:       r.Date,
+				ItemLabel:  r.SourceTitle,
+				DetailPath: r.detailPath(),
+				IsUpgrade:  upgradedItems[r.itemID(itemIDField)],
+				Quality:    r.Quality.Quality.Name,
+			})
+		}
 	}
 
-	var records []HistoryRecord
-	for _, r := range importRecords {
-		if !r.Date.After(since) {
-			continue
+	// Each page arrives newest first, but records from separate pages
+	// interleave; restore a single newest-first ordering.
+	slices.SortFunc(records, func(a, b HistoryRecord) int {
+		if c := b.Date.Compare(a.Date); c != 0 {
+			return c
 		}
-		records = append(records, HistoryRecord{
-			ID:         r.ID,
-			Date:       r.Date,
-			ItemLabel:  r.SourceTitle,
-			DetailPath: r.detailPath(),
-			IsUpgrade:  upgradedItems[r.itemID(itemIDField)],
-			Quality:    r.Quality.Quality.Name,
-		})
-	}
+		return cmp.Compare(b.ID, a.ID)
+	})
 
 	log.Debug().
-		Int("importRecords", len(importRecords)).
+		Int("importEventTypes", len(importEventTypes)).
+		Int("importRecords", fetched).
 		Int("afterFilter", len(records)).
 		Time("since", since).
 		Msg("history: processed import events")

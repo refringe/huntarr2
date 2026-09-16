@@ -1,5 +1,5 @@
 // Package arr provides client implementations for *arr applications
-// (Sonarr, Radarr, Lidarr, Whisparr). The shared App interface abstracts
+// (Sonarr, Radarr, Lidarr, Whisparr v2/v3). The shared App interface abstracts
 // over application-specific APIs so the scheduler and API handlers can
 // operate on any *arr type uniformly.
 package arr

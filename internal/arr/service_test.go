@@ -2,6 +2,7 @@ package arr
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -329,6 +330,72 @@ func TestSearchCycleInstanceNotFound(t *testing.T) {
 	_, err := svc.SearchCycle(context.Background(), uuid.New(), 50)
 	if err == nil {
 		t.Fatal("expected error for missing instance, got nil")
+	}
+}
+
+func TestTestConnectionVersionCheck(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		appType      instance.AppType
+		version      string
+		wantMismatch bool
+	}{
+		{"whisparr-v3 against v2 server", instance.AppTypeWhisparrV3, "2.0.0.548", true},
+		{"whisparr-v3 against v3 server", instance.AppTypeWhisparrV3, "3.3.8.7878", false},
+		{"whisparr-v2 against v2 server", instance.AppTypeWhisparrV2, "2.0.0.548", false},
+		{"whisparr-v2 against v3 server", instance.AppTypeWhisparrV2, "3.3.8.7878", true},
+		{"unparsable version skips the check", instance.AppTypeWhisparrV3, "nightly", false},
+		{"sonarr accepts any version", instance.AppTypeSonarr, "99.0.0.1", false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.Write([]byte(`{"appName":"Whisparr","version":"` + tc.version + `"}`)) //nolint:errcheck // test helper
+			}))
+			defer srv.Close()
+
+			svc := NewService(&fakeRepository{})
+			err := svc.TestConnection(context.Background(), tc.appType, srv.URL, "key", 5000)
+			if tc.wantMismatch {
+				if !errors.Is(err, ErrVersionMismatch) {
+					t.Fatalf("err = %v, want ErrVersionMismatch", err)
+				}
+			} else if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+func TestMajorVersion(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		version string
+		want    int
+	}{
+		{"3.3.8.7878", 3},
+		{"2.0.0.548", 2},
+		{"10.1", 10},
+		{"", 0},
+		{"beta", 0},
+		{"-1.0", 0},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.version, func(t *testing.T) {
+			t.Parallel()
+
+			if got := majorVersion(tc.version); got != tc.want {
+				t.Errorf("majorVersion(%q) = %d, want %d", tc.version, got, tc.want)
+			}
+		})
 	}
 }
 

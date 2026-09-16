@@ -35,12 +35,15 @@ type fetchHistoryFunc func(ctx context.Context, client *client,
 	apiVersion string, since time.Time, pageSize int) ([]HistoryRecord, error)
 
 // appConfig holds the per-application parameters that distinguish one *arr
-// adapter from another.
+// adapter from another. versionMajor, when non-zero, is the server major
+// version a connection test requires — used to tell apart applications
+// whose generations share a status endpoint and appName.
 type appConfig struct {
 	name         string
 	apiVersion   string
 	commandKey   string
 	idField      string
+	versionMajor int
 	fetchLibrary fetchLibraryFunc
 	fetchHistory fetchHistoryFunc
 }

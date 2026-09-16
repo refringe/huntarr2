@@ -9,6 +9,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 
+	"github.com/refringe/huntarr2/internal/arr"
 	"github.com/refringe/huntarr2/internal/instance"
 )
 
@@ -193,12 +194,19 @@ func (rt *Router) handleTestInstance(w http.ResponseWriter, r *http.Request) {
 	testErr := rt.arr.TestConnection(r.Context(), inst.AppType, inst.BaseURL, inst.APIKey, inst.TimeoutMs)
 	if testErr != nil {
 		log.Warn().Err(testErr).Str("instance", id.String()).Msg("connection test failed")
+		// A version mismatch means the server was reached; surface the
+		// specific message so the user learns they picked the wrong
+		// application type rather than a bad URL or key.
+		message := "connection test failed; check the instance URL and API key"
+		if errors.Is(testErr, arr.ErrVersionMismatch) {
+			message = testErr.Error()
+		}
 		writeJSON(w, http.StatusBadGateway, statusResponse{
-			Status:  "failed",
-			Message: "connection test failed; check the instance URL and API key",
+			Status:  statusFailed,
+			Message: message,
 		})
 		return
 	}
 
-	writeJSON(w, http.StatusOK, statusResponse{Status: "ok"})
+	writeJSON(w, http.StatusOK, statusResponse{Status: statusOK})
 }

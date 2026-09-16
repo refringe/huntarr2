@@ -1,17 +1,19 @@
-// appDefaults maps each application type to its display label and default
-// port. Used to generate placeholder URLs and default instance names.
+// appDefaults maps each application type to its display label, default
+// port, and placeholder hostname. Used to generate placeholder URLs and
+// default instance names.
 var appDefaults = {
-    sonarr: { label: 'Sonarr', port: 8989 },
-    radarr: { label: 'Radarr', port: 7878 },
-    lidarr: { label: 'Lidarr', port: 8686 },
-    whisparr: { label: 'Whisparr', port: 6969 },
+    sonarr: { label: 'Sonarr', port: 8989, host: 'sonarr' },
+    radarr: { label: 'Radarr', port: 7878, host: 'radarr' },
+    lidarr: { label: 'Lidarr', port: 8686, host: 'lidarr' },
+    'whisparr-v2': { label: 'Whisparr V2', port: 6969, host: 'whisparr' },
+    'whisparr-v3': { label: 'Whisparr V3', port: 6969, host: 'whisparr' },
 };
 
 // defaultPlaceholder returns a placeholder URL for the given app type.
 function defaultPlaceholder(appType) {
     var d = appDefaults[appType];
     if (!d) return '';
-    return 'http://' + appType + ':' + d.port;
+    return 'http://' + d.host + ':' + d.port;
 }
 
 // defaultName returns a suggested instance name for the given app type based

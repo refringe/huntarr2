@@ -450,7 +450,9 @@ func TestAppTypeValid(t *testing.T) {
 		{AppTypeSonarr, true},
 		{AppTypeRadarr, true},
 		{AppTypeLidarr, true},
-		{AppTypeWhisparr, true},
+		{AppTypeWhisparrV2, true},
+		{AppTypeWhisparrV3, true},
+		{"whisparr", false},
 		{"prowlarr", false},
 		{"netflix", false},
 		{"", false},
@@ -462,5 +464,46 @@ func TestAppTypeValid(t *testing.T) {
 				t.Errorf("Valid() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestAppTypeLabel(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		appType AppType
+		want    string
+	}{
+		{AppTypeSonarr, "Sonarr"},
+		{AppTypeRadarr, "Radarr"},
+		{AppTypeLidarr, "Lidarr"},
+		{AppTypeWhisparrV2, "Whisparr V2"},
+		{AppTypeWhisparrV3, "Whisparr V3"},
+		{"bogus", "bogus"},
+	}
+
+	for _, tt := range tests {
+		t.Run(string(tt.appType), func(t *testing.T) {
+			if got := tt.appType.Label(); got != tt.want {
+				t.Errorf("Label() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestAllAppTypesInSync(t *testing.T) {
+	t.Parallel()
+
+	types := AllAppTypes()
+	if len(types) == 0 {
+		t.Fatal("AllAppTypes() returned no types")
+	}
+	for _, appType := range types {
+		if !appType.Valid() {
+			t.Errorf("%q is listed but not valid", appType)
+		}
+		if appType.Label() == string(appType) {
+			t.Errorf("%q has no display label", appType)
+		}
 	}
 }

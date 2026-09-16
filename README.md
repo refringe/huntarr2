@@ -8,7 +8,7 @@
 
 Huntarr2 tells your \*arr apps to search for missing items and quality upgrades so you don't have to do it manually.
 
-It connects to Sonarr, Radarr, Lidarr, and Whisparr, finds monitored items with no file and items that haven't reached their quality cutoff, then triggers searches for them on a schedule. That's it. There is a web UI for configuration and viewing what it's doing.
+It connects to Sonarr, Radarr, Lidarr, and Whisparr (v2 and v3), finds monitored items with no file and items that haven't reached their quality cutoff, then triggers searches for them on a schedule. That's it. There is a web UI for configuration and viewing what it's doing.
 
 ## How it works
 

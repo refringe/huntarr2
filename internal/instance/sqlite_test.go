@@ -205,7 +205,7 @@ func TestSQLiteRepository_ListByType(t *testing.T) {
 		t.Errorf("expected 1 radarr instance, got %d", len(radarrs))
 	}
 
-	whisparrs, err := repo.ListByType(ctx, AppTypeWhisparr)
+	whisparrs, err := repo.ListByType(ctx, AppTypeWhisparrV3)
 	if err != nil {
 		t.Fatalf("ListByType whisparr: %v", err)
 	}
@@ -325,7 +325,7 @@ func TestSQLiteRepository_APIKeyEncryptedAtRest(t *testing.T) {
 	ctx := context.Background()
 
 	plaintext := "super-secret-api-key-12345"
-	inst := newTestInstance("Encrypted Key Test", AppTypeWhisparr)
+	inst := newTestInstance("Encrypted Key Test", AppTypeWhisparrV2)
 	inst.APIKey = plaintext
 
 	if err := repo.Create(ctx, inst); err != nil {

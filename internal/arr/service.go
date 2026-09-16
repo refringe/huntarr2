@@ -2,7 +2,10 @@ package arr
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -11,6 +14,11 @@ import (
 
 	"github.com/refringe/huntarr2/internal/instance"
 )
+
+// ErrVersionMismatch indicates a connection test reached the server, but
+// the reported major version does not match the selected application
+// type (e.g. a Whisparr v2 server behind a whisparr-v3 instance).
+var ErrVersionMismatch = errors.New("application version mismatch")
 
 // InstanceStatus holds the connection status and version for a single *arr
 // instance.
@@ -23,7 +31,7 @@ type InstanceStatus struct {
 }
 
 // Service aggregates data from all *arr instances (Sonarr, Radarr, Lidarr,
-// Whisparr).
+// Whisparr v2/v3).
 type Service struct {
 	instances instance.Repository
 }
@@ -80,16 +88,38 @@ func (s *Service) Status(ctx context.Context) ([]InstanceStatus, error) {
 // TestConnection attempts to reach an *arr instance at the given address
 // and returns nil on success. The probe is additionally bounded by the
 // status timeout, so a test never hangs for the full per-request timeout.
+// When the application type demands a specific major version, the server's
+// reported version is checked and a mismatch returns ErrVersionMismatch.
 func (s *Service) TestConnection(ctx context.Context, appType instance.AppType, baseURL, apiKey string, timeoutMs int) error {
 	timeout := time.Duration(timeoutMs) * time.Millisecond
 	app, err := NewApp(appType, baseURL, apiKey, timeout)
 	if err != nil {
 		return fmt.Errorf("creating app client: %w", err)
 	}
-	if _, err = app.Status(ctx); err != nil {
+	sys, err := app.Status(ctx)
+	if err != nil {
 		return fmt.Errorf("testing connection: %w", err)
 	}
+	if want := appConfigs[appType].versionMajor; want > 0 {
+		// An unparsable version reports 0 and skips the check: a healthy
+		// connection is never failed on version formatting alone.
+		if got := majorVersion(sys.Version); got > 0 && got != want {
+			return fmt.Errorf("%w: the server reports version %s; expected a v%d server for %s",
+				ErrVersionMismatch, sys.Version, want, appType)
+		}
+	}
 	return nil
+}
+
+// majorVersion returns the leading integer of a dotted version string, or
+// 0 when it cannot be parsed.
+func majorVersion(version string) int {
+	head, _, _ := strings.Cut(version, ".")
+	major, err := strconv.Atoi(head)
+	if err != nil || major < 0 {
+		return 0
+	}
+	return major
 }
 
 // UpgradeResult holds the items eligible for upgrade, monitored items

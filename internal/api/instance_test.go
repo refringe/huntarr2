@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/refringe/huntarr2/internal/arr"
 	"github.com/refringe/huntarr2/internal/instance"
 )
 
@@ -320,6 +322,12 @@ func TestHandleTestInstanceAppTypes(t *testing.T) {
 			wantStatus: "ok",
 		},
 		{
+			name:       "whisparr-v3 success",
+			appType:    instance.AppTypeWhisparrV3,
+			baseURL:    "http://whisparr:6969",
+			wantStatus: "ok",
+		},
+		{
 			name:       "connection failure",
 			appType:    instance.AppTypeSonarr,
 			baseURL:    "http://sonarr:8989",
@@ -327,6 +335,16 @@ func TestHandleTestInstanceAppTypes(t *testing.T) {
 			wantCode:   http.StatusBadGateway,
 			wantStatus: "failed",
 			wantMsg:    "connection test failed; check the instance URL and API key",
+		},
+		{
+			name:    "version mismatch surfaces detail",
+			appType: instance.AppTypeWhisparrV3,
+			baseURL: "http://whisparr:6969",
+			testErr: fmt.Errorf("%w: the server reports version 2.0.0.548; expected a v3 server for whisparr-v3",
+				arr.ErrVersionMismatch),
+			wantCode:   http.StatusBadGateway,
+			wantStatus: "failed",
+			wantMsg:    "application version mismatch: the server reports version 2.0.0.548; expected a v3 server for whisparr-v3",
 		},
 	}
 

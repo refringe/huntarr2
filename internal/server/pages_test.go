@@ -10,33 +10,6 @@ import (
 	"github.com/refringe/huntarr2/web/templates/pages"
 )
 
-func TestCapitalise(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		input string
-		want  string
-	}{
-		{"sonarr", "Sonarr"},
-		{"radarr", "Radarr"},
-		{"whisparr", "Whisparr"},
-		{"a", "A"},
-		{"", ""},
-		{"ALREADY", "ALREADY"},
-		{"lidarr", "Lidarr"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.input, func(t *testing.T) {
-			t.Parallel()
-			got := capitalise(tt.input)
-			if got != tt.want {
-				t.Errorf("capitalise(%q) = %q, want %q", tt.input, got, tt.want)
-			}
-		})
-	}
-}
-
 func TestAggregateStats(t *testing.T) {
 	t.Parallel()
 

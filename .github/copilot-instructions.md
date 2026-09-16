@@ -2,7 +2,7 @@
 
 ## Project Summary
 
-Huntarr2 is a Go web service that automates quality upgrade searches across *arr applications (Sonarr, Radarr, Lidarr, Whisparr). It runs as a single Docker container with a SQLite database, serving a web UI on port 9706. The codebase is roughly 75 Go source files plus templ templates, JS, and SQL migrations.
+Huntarr2 is a Go web service that automates quality upgrade searches across *arr applications (Sonarr, Radarr, Lidarr, Whisparr v2/v3). It runs as a single Docker container with a SQLite database, serving a web UI on port 9706. The codebase is roughly 75 Go source files plus templ templates, JS, and SQL migrations.
 
 **Stack:** Go 1.26 (stdlib `net/http`), zerolog, SQLite via `modernc.org/sqlite` (pure Go, no CGO), templ templates, Alpine.js, Tailwind CSS.
 
@@ -137,7 +137,7 @@ web/
 - **Dependency injection**: services receive `*sql.DB`, config, and other dependencies as struct fields. No globals except the zerolog logger.
 - **Error wrapping**: always use `fmt.Errorf("context: %w", err)`.
 - **Tests**: standard library `testing` only. Tests live in the same package (not `_test` packages). Table-driven tests for validation. Interfaces faked with local structs. Use `t.Helper()` and `t.Setenv()`.
-- **Database**: single migration file `001_initial_schema.sql` (pre-launch policy). UUID primary keys. All schema changes go in this file, not new migration files.
+- **Database**: goose migrations in `internal/database/migrations`. UUID primary keys. The product is launched: existing migration files are immutable, and every schema change is a new, numbered migration file.
 - **UK English everywhere**: identifiers, comments, error messages, JSON fields, database columns. The misspell linter enforces this.
 
 ## Trust These Instructions

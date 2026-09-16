@@ -15,6 +15,12 @@ type statusResponse struct {
 	Message string `json:"message,omitempty"`
 }
 
+// Status values used in statusResponse payloads.
+const (
+	statusOK     = "ok"
+	statusFailed = "failed"
+)
+
 // searchResponse is returned by the search endpoint.
 type searchResponse struct {
 	Searched int `json:"searched"`

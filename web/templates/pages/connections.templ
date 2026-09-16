@@ -1,16 +1,9 @@
 package pages
 
-import "github.com/refringe/huntarr2/web/templates/layouts"
-
-var appTypeSections = []struct {
-	Type  string
-	Label string
-}{
-	{"sonarr", "Sonarr"},
-	{"radarr", "Radarr"},
-	{"lidarr", "Lidarr"},
-	{"whisparr", "Whisparr"},
-}
+import (
+	"github.com/refringe/huntarr2/internal/instance"
+	"github.com/refringe/huntarr2/web/templates/layouts"
+)
 
 templ Connections(data ConnectionsData) {
 	@layouts.Base("Connections", "/connections") {
@@ -19,8 +12,8 @@ templ Connections(data ConnectionsData) {
 				<h1 class="text-2xl font-bold">Connections</h1>
 			</div>
 			@trashGuidesBanner("huntarr2:dismiss:trash-guides-connections")
-			for _, section := range appTypeSections {
-				@connectionSection(section.Type, section.Label, data)
+			for _, t := range instance.AllAppTypes() {
+				@connectionSection(string(t), t.Label(), data)
 			}
 			@connectionModal()
 			@deleteModal()
@@ -133,10 +126,9 @@ templ connectionModal() {
 						x-model="form.appType"
 						class="mt-1 w-full rounded-md border border-brand-600 bg-brand-700 px-3 py-2 text-white focus:border-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-600/50"
 					>
-						<option value="sonarr">Sonarr</option>
-						<option value="radarr">Radarr</option>
-						<option value="lidarr">Lidarr</option>
-						<option value="whisparr">Whisparr</option>
+						for _, t := range instance.AllAppTypes() {
+							<option value={ string(t) }>{ t.Label() }</option>
+						}
 					</select>
 				</div>
 				<div>

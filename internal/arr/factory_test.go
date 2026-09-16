@@ -18,7 +18,9 @@ func TestNewApp(t *testing.T) {
 		{"sonarr succeeds", instance.AppTypeSonarr, false},
 		{"radarr succeeds", instance.AppTypeRadarr, false},
 		{"lidarr succeeds", instance.AppTypeLidarr, false},
-		{"whisparr succeeds", instance.AppTypeWhisparr, false},
+		{"whisparr-v2 succeeds", instance.AppTypeWhisparrV2, false},
+		{"whisparr-v3 succeeds", instance.AppTypeWhisparrV3, false},
+		{"unqualified whisparr errors", instance.AppType("whisparr"), true},
 		{"unknown type errors", instance.AppType("bogus"), true},
 	}
 
