@@ -2,9 +2,9 @@
 
 ## Project Summary
 
-Huntarr2 is a Go web service that automates quality upgrade searches across *arr applications (Sonarr, Radarr, Lidarr, Whisparr v2/v3). It runs as a single Docker container with a SQLite database, serving a web UI on port 9706. The codebase is roughly 75 Go source files plus templ templates, JS, and SQL migrations.
+Huntarr2 is a Go web service that automates missing-item and quality upgrade searches across *arr applications (Sonarr, Radarr, Lidarr, Whisparr v2/v3). It runs as a single Docker container with a SQLite database, serving a web UI on port 9706. The codebase is roughly 85 Go source files plus templ templates, JS, and SQL migrations.
 
-**Stack:** Go 1.26 (stdlib `net/http`), zerolog, SQLite via `modernc.org/sqlite` (pure Go, no CGO), templ templates, Alpine.js, Tailwind CSS.
+**Stack:** Go 1.27 (stdlib `net/http`), zerolog, SQLite via `modernc.org/sqlite` (pure Go, no CGO), templ templates, Alpine.js, Tailwind CSS.
 
 ## Build, Test, and Validate
 
@@ -32,7 +32,7 @@ Produces `bin/huntarr2`. Uses `CGO_ENABLED=0`. Build takes ~3 seconds.
 make test
 ```
 
-Runs `go test -race ./...`. Tests take ~10 seconds total. Tests use in-memory SQLite databases via `internal/database/testdb/testdb.go`. No external services or Docker required.
+Runs `go test -race ./...`. Tests take ~10 seconds total. Tests use temp-file SQLite databases via `internal/database/testdb/testdb.go`. No external services or Docker required.
 
 ### Lint
 
@@ -87,7 +87,7 @@ CI verifies `go.mod` and `go.sum` are tidy and contain no `replace` directives.
 
 ## CI Workflows (`.github/workflows/`)
 
-Four workflows run on every PR to `main`:
+Five workflows run on every PR to `develop` or `main`:
 
 | Workflow | File | What it checks |
 |---|---|---|
@@ -95,8 +95,9 @@ Four workflows run on every PR to `main`:
 | **Tests** | `tests.yml` | `make test`, coverage upload |
 | **Format** | `format.yml` | `make fmt-check`, `make prettier-check` (Node 22) |
 | **Vulnerability** | `vulnerability.yml` | `govulncheck ./...` |
+| **CodeQL** | `codeql.yml` | CodeQL static analysis |
 
-All four must pass for a PR to merge.
+All five must pass for a PR to merge. `release.yml` runs only on version tags.
 
 ## Project Layout
 
@@ -110,7 +111,7 @@ internal/
   cooldown/                     Per-item search cooldown tracking
   database/                     SQLite connection, migrations, error mapping, tx helper
     migrations/                 Goose SQL migrations (embedded via embed.go)
-    testdb/                     Test helper: in-memory SQLite with migrations applied
+    testdb/                     Test helper: temp-file SQLite with migrations applied
   encrypt/                      AES-256-GCM encryption for API keys at rest
   instance/                     Instance CRUD (domain types, repository, service, SQLite)
   scheduler/                    Adaptive scheduling engine
@@ -128,7 +129,7 @@ web/
 - `.golangci.yml` — linter config (UK locale, depguard, forbidigo rules)
 - `.prettierrc.json` — Prettier config for JS/JSON/YAML
 - `Makefile` — all build/test/lint/docker targets
-- `Dockerfile` — multi-stage build (golang:1.26-alpine → alpine:3.24)
+- `Dockerfile` — multi-stage build (golang:1.27-alpine → alpine:3.24)
 - `docker-compose.yml` — local development stack
 
 ## Architecture and Conventions

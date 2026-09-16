@@ -11,7 +11,7 @@ Thanks for your interest in contributing. Huntarr2 is built in the open and welc
 
 ## Prerequisites
 
-- Go 1.26+
+- Go 1.27+
 - Docker and Docker Compose
 - [golangci-lint](https://golangci-lint.run/) (for linting)
 
