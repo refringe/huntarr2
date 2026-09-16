@@ -61,9 +61,7 @@ func (s *Service) Status(ctx context.Context) ([]InstanceStatus, error) {
 			continue
 		}
 
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			sys, err := app.Status(ctx)
 			if err != nil {
 				log.Warn().Err(err).Str("instance", inst.Name).
@@ -72,7 +70,7 @@ func (s *Service) Status(ctx context.Context) ([]InstanceStatus, error) {
 			}
 			statuses[i].Connected = true
 			statuses[i].Version = sys.Version
-		}()
+		})
 	}
 	wg.Wait()
 
