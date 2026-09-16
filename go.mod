@@ -2,6 +2,8 @@ module github.com/refringe/huntarr2
 
 go 1.26
 
+toolchain go1.26.6
+
 require (
 	github.com/a-h/templ v0.3.1020
 	github.com/google/uuid v1.6.0
