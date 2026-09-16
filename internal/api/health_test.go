@@ -1,7 +1,7 @@
 package api
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -26,7 +26,7 @@ func TestHandleHealth(t *testing.T) {
 	}
 
 	var body map[string]string
-	if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
+	if err := json.UnmarshalRead(w.Body, &body); err != nil {
 		t.Fatalf("decoding response body: %v", err)
 	}
 

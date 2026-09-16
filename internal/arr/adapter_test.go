@@ -2,7 +2,8 @@ package arr
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"io"
 	"net/http"
@@ -281,7 +282,7 @@ func TestAdapterSearch(t *testing.T) {
 				if err != nil {
 					t.Fatalf("reading body: %v", err)
 				}
-				var cmd map[string]json.RawMessage
+				var cmd map[string]jsontext.Value
 				if err := json.Unmarshal(body, &cmd); err != nil {
 					t.Fatalf("unmarshalling body: %v", err)
 				}
@@ -382,7 +383,7 @@ func TestAdapterHistory(t *testing.T) {
 					},
 				}
 				w.Header().Set("Content-Type", "application/json")
-				json.NewEncoder(w).Encode(resp) //nolint:errcheck // test helper
+				json.MarshalWrite(w, resp) //nolint:errcheck // test helper
 			}))
 			defer srv.Close()
 

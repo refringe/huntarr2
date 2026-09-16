@@ -3,7 +3,7 @@ package activity
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"strings"
 	"time"

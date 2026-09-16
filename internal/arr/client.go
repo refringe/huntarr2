@@ -3,7 +3,7 @@ package arr
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"io"
 	"net/http"
@@ -58,7 +58,7 @@ func (c *client) get(ctx context.Context, path string, dst any) error {
 		return responseError(resp, path)
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(dst); err != nil {
+	if err := json.UnmarshalRead(resp.Body, dst); err != nil {
 		return fmt.Errorf("decoding response from %s: %w", path, err)
 	}
 
@@ -95,7 +95,7 @@ func (c *client) post(ctx context.Context, path string, body, dst any) error {
 		return responseError(resp, path)
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(dst); err != nil {
+	if err := json.UnmarshalRead(resp.Body, dst); err != nil {
 		return fmt.Errorf("decoding response from %s: %w", path, err)
 	}
 

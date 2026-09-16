@@ -3,7 +3,7 @@ package api
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"net/http"
@@ -101,7 +101,7 @@ func TestHandleListInstances(t *testing.T) {
 	}
 
 	var body []instanceResponse
-	if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
+	if err := json.UnmarshalRead(w.Body, &body); err != nil {
 		t.Fatalf("decoding: %v", err)
 	}
 	if len(body) != 1 {
@@ -123,7 +123,7 @@ func TestHandleCreateInstanceValid(t *testing.T) {
 	}
 
 	var resp instanceResponse
-	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+	if err := json.UnmarshalRead(w.Body, &resp); err != nil {
 		t.Fatalf("decoding: %v", err)
 	}
 	if resp.Name != "My Sonarr" {
@@ -203,7 +203,7 @@ func TestHandleUpdateInstance(t *testing.T) {
 	}
 
 	var resp instanceResponse
-	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+	if err := json.UnmarshalRead(w.Body, &resp); err != nil {
 		t.Fatalf("decoding response: %v", err)
 	}
 	if resp.Name != "Renamed" {
@@ -275,7 +275,7 @@ func TestHandleTestInstanceSuccess(t *testing.T) {
 	}
 
 	var body map[string]string
-	if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
+	if err := json.UnmarshalRead(w.Body, &body); err != nil {
 		t.Fatalf("decoding response: %v", err)
 	}
 	if body["status"] != "ok" {
@@ -380,7 +380,7 @@ func TestHandleTestInstanceAppTypes(t *testing.T) {
 			}
 
 			var body map[string]string
-			if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
+			if err := json.UnmarshalRead(w.Body, &body); err != nil {
 				t.Fatalf("decoding response: %v", err)
 			}
 			if body["status"] != tt.wantStatus {

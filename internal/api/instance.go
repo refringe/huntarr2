@@ -1,7 +1,7 @@
 package api
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"net/http"
@@ -67,7 +67,7 @@ func (rt *Router) handleListInstances(w http.ResponseWriter, r *http.Request) {
 
 func (rt *Router) handleCreateInstance(w http.ResponseWriter, r *http.Request) {
 	var req createInstanceRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.UnmarshalRead(r.Body, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -120,7 +120,7 @@ func (rt *Router) handleUpdateInstance(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req updateInstanceRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.UnmarshalRead(r.Body, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}

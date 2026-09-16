@@ -2,7 +2,7 @@ package arr
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -60,9 +60,9 @@ func TestFetchArrHistory(t *testing.T) {
 		et := r.URL.Query().Get("eventType")
 		switch et {
 		case "6": // radarrFileDeleted (movieFileDeleted)
-			json.NewEncoder(w).Encode(map[string]any{"records": deleteRecords}) //nolint:errcheck // test helper
+			json.MarshalWrite(w, map[string]any{"records": deleteRecords}) //nolint:errcheck // test helper
 		case "3": // radarrImported (downloadFolderImported)
-			json.NewEncoder(w).Encode(map[string]any{"records": importRecords}) //nolint:errcheck // test helper
+			json.MarshalWrite(w, map[string]any{"records": importRecords}) //nolint:errcheck // test helper
 		default:
 			t.Errorf("unexpected eventType = %q", et)
 		}
@@ -118,10 +118,10 @@ func TestFetchArrHistoryOldRecordFiltered(t *testing.T) {
 		et := r.URL.Query().Get("eventType")
 		switch et {
 		case "5": // sonarrFileDeleted
-			json.NewEncoder(w).Encode(map[string]any{"records": []any{}}) //nolint:errcheck // test helper
+			json.MarshalWrite(w, map[string]any{"records": []any{}}) //nolint:errcheck // test helper
 		case "3": // sonarrImported
 			//nolint:errcheck // test helper
-			json.NewEncoder(w).Encode(map[string]any{"records": []map[string]any{
+			json.MarshalWrite(w, map[string]any{"records": []map[string]any{
 				{
 					"id":          3,
 					"date":        old.Format(time.RFC3339Nano),
@@ -187,7 +187,7 @@ func TestFetchArrHistoryDeleteFailureNonFatal(t *testing.T) {
 		case "3": // radarrImported (downloadFolderImported)
 			w.Header().Set("Content-Type", "application/json")
 			//nolint:errcheck // test helper
-			json.NewEncoder(w).Encode(map[string]any{"records": []map[string]any{
+			json.MarshalWrite(w, map[string]any{"records": []map[string]any{
 				{
 					"id":          1,
 					"date":        recent.Format(time.RFC3339Nano),
@@ -266,7 +266,7 @@ func TestFetchArrHistoryMultipleImportTypes(t *testing.T) {
 		switch et {
 		case "6": // whisparrV3FileDeleted (movieFileDeleted)
 			//nolint:errcheck // test helper
-			json.NewEncoder(w).Encode(map[string]any{"records": []map[string]any{
+			json.MarshalWrite(w, map[string]any{"records": []map[string]any{
 				{
 					"id":        100,
 					"date":      recent.Format(time.RFC3339Nano),
@@ -277,7 +277,7 @@ func TestFetchArrHistoryMultipleImportTypes(t *testing.T) {
 			}})
 		case "3": // whisparrV3Imported (downloadFolderImported)
 			//nolint:errcheck // test helper
-			json.NewEncoder(w).Encode(map[string]any{"records": []map[string]any{
+			json.MarshalWrite(w, map[string]any{"records": []map[string]any{
 				{
 					"id":          1,
 					"date":        recent.Add(-10 * time.Minute).Format(time.RFC3339Nano),
@@ -291,7 +291,7 @@ func TestFetchArrHistoryMultipleImportTypes(t *testing.T) {
 			}})
 		case "10": // whisparrV3DiskImported (diskScanImported)
 			//nolint:errcheck // test helper
-			json.NewEncoder(w).Encode(map[string]any{"records": []map[string]any{
+			json.MarshalWrite(w, map[string]any{"records": []map[string]any{
 				{
 					"id":          2,
 					"date":        recent.Format(time.RFC3339Nano),

@@ -1,7 +1,8 @@
 package api
 
 import (
-	"encoding/json"
+	jsonv1 "encoding/json"
+	"encoding/json/v2"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -29,7 +30,7 @@ type searchResponse struct {
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	if err := json.NewEncoder(w).Encode(v); err != nil {
+	if err := json.MarshalWrite(w, v, jsonv1.FormatDurationAsNano(true)); err != nil {
 		log.Error().Err(err).Msg("failed to encode JSON response")
 	}
 }

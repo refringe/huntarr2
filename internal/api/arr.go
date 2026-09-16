@@ -1,7 +1,8 @@
 package api
 
 import (
-	"encoding/json"
+	"bytes"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -46,11 +47,19 @@ func (rt *Router) handleInstanceSearch(w http.ResponseWriter, r *http.Request) {
 		log.Warn().Err(err).Msg("could not extend write deadline for search cycle")
 	}
 
-	// An empty body (io.EOF) is accepted.
-	var req searchRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
+	}
+
+	// An empty body is accepted.
+	var req searchRequest
+	if len(bytes.TrimSpace(body)) > 0 {
+		if err := json.Unmarshal(body, &req); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid request body")
+			return
+		}
 	}
 	if req.BatchSize <= 0 {
 		req.BatchSize = 50
