@@ -50,8 +50,8 @@ func withSecurityHeaders(next http.Handler) http.Handler {
 func withStaticCacheHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		base := r.URL.Path
-		if i := strings.LastIndex(base, "/"); i >= 0 {
-			base = base[i+1:]
+		if _, after, ok := strings.CutLast(base, "/"); ok {
+			base = after
 		}
 		header := appCacheHeader
 		if versionedFile.MatchString(base) {
