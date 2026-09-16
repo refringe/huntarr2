@@ -292,8 +292,7 @@ func TestUpdateBlankAPIKeyPreservesExisting(t *testing.T) {
 		t.Fatalf("create: %v", err)
 	}
 
-	// Editing the UI leaves the API key blank to avoid leaking it. A blank
-	// key on update must keep the stored value rather than wiping it.
+	// A blank API key on update must keep the stored value.
 	update := &Instance{
 		Name:      "Renamed Sonarr",
 		BaseURL:   "http://localhost:7878",

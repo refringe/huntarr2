@@ -27,10 +27,8 @@ type settingsDeleteRequest struct {
 	Keys []string `json:"keys"`
 }
 
-// settingsResponse converts domain settings to a JSON-friendly format. Duration
-// fields are rendered as human-readable Go duration strings (e.g. "24h",
-// "6h30m") so the API response is self-explanatory and round-trips cleanly
-// with time.ParseDuration on the server side.
+// settingsResponse converts domain settings to a JSON-friendly format; duration fields are rendered as Go duration
+// strings (e.g. "24h", "6h30m") that round-trip through time.ParseDuration.
 type settingsResponse struct {
 	BatchSize         int    `json:"batchSize"`
 	CooldownPeriod    string `json:"cooldownPeriod"`
@@ -55,9 +53,8 @@ func toSettingsResponse(r settings.Resolved) settingsResponse {
 	}
 }
 
-// formatDuration renders a time.Duration as a compact, human-readable string
-// (e.g. "24h", "1h30m", "45s", "500ms"). Unlike time.Duration.String(), it
-// omits zero components for cleaner output.
+// formatDuration renders a time.Duration as a compact string (e.g. "24h", "1h30m", "45s", "500ms"), omitting zero
+// components.
 func formatDuration(d time.Duration) string {
 	if d == 0 {
 		return "0s"
@@ -76,8 +73,7 @@ func formatDuration(d time.Duration) string {
 	if s > 0 {
 		fmt.Fprintf(&b, "%ds", s)
 	}
-	// Sub-second durations produce no output from the h/m/s branches above,
-	// so fall back to milliseconds.
+	// A sub-second duration produces no output from the h/m/s branches and is rendered as milliseconds.
 	if b.Len() == 0 && d > 0 {
 		fmt.Fprintf(&b, "%dms", d.Milliseconds())
 	}

@@ -408,8 +408,7 @@ func TestUpgradeableSlowLibraryUnderBudgetSucceeds(t *testing.T) {
 		w.Write([]byte(`[]`)) //nolint:errcheck // test helper
 	})
 	mux.HandleFunc("/api/v3/movie", func(w http.ResponseWriter, _ *http.Request) {
-		// Slower than the instance's per-request timeout: the library
-		// class must not be bound by it.
+		// Slower than the instance's per-request timeout, which must not bound the library request class.
 		time.Sleep(300 * time.Millisecond)
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`[]`)) //nolint:errcheck // test helper

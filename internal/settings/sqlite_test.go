@@ -11,8 +11,7 @@ import (
 	"github.com/refringe/huntarr2/internal/instance"
 )
 
-// randomEncryptionKey generates a cryptographically random 32-byte key
-// suitable for AES-256-GCM encryption.
+// randomEncryptionKey generates a cryptographically random 32-byte key suitable for AES-256-GCM encryption.
 func randomEncryptionKey(t *testing.T) []byte {
 	t.Helper()
 	key := make([]byte, 32)

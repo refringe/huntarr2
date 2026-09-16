@@ -10,9 +10,7 @@ import (
 	"github.com/refringe/huntarr2/internal/database/testdb"
 )
 
-// randomKey generates a cryptographically random 32-byte encryption key
-// suitable for AES-256-GCM. It fails the test immediately if the system
-// random source is unavailable.
+// randomKey generates a cryptographically random 32-byte AES-256-GCM key, failing the test on error.
 func randomKey(t *testing.T) []byte {
 	t.Helper()
 
@@ -23,9 +21,7 @@ func randomKey(t *testing.T) []byte {
 	return key
 }
 
-// newTestInstance returns an Instance populated with valid fields for
-// testing. Each call uses a unique name to avoid collisions when multiple
-// instances are created within a single test.
+// newTestInstance returns an Instance populated with valid fields; each call uses a unique name.
 func newTestInstance(name string, appType AppType) *Instance {
 	return &Instance{
 		Name:      name,

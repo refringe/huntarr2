@@ -11,13 +11,10 @@ import (
 	"github.com/refringe/huntarr2/internal/activity"
 )
 
-// maxActivityLimit is the maximum number of activity entries returned per
-// request. The service layer also caps the limit, but enforcing here gives
-// clients a clear 400 error rather than a silent clamp.
+// maxActivityLimit is the maximum number of activity entries returned per request.
 const maxActivityLimit = 500
 
-// maxActivityOffset prevents unreasonably deep pagination that would
-// strain the database.
+// maxActivityOffset is the upper bound for the pagination offset.
 const maxActivityOffset = 100000
 
 type activityListResponse struct {

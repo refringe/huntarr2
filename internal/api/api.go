@@ -1,5 +1,4 @@
-// Package api provides REST API handlers for the Huntarr2 web interface and
-// external automation.
+// Package api provides REST API handlers for the Huntarr2 web interface and external automation.
 package api
 
 import (

@@ -1,5 +1,4 @@
-// logViewer manages the activity log table on the Logs page, including
-// filtering, pagination, and auto-refresh.
+// logViewer manages the activity log table on the Logs page, including filtering, pagination, and auto-refresh.
 
 // Polling interval in milliseconds for auto-refresh.
 var LOG_POLL_INTERVAL_MS = 5000;

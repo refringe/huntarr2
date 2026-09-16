@@ -354,8 +354,8 @@ func TestAdapterHistory(t *testing.T) {
 		{"radarr", instance.AppTypeRadarr, "v3"},
 		{"lidarr", instance.AppTypeLidarr, "v1"},
 		{"whisparr-v2", instance.AppTypeWhisparrV2, "v3"},
-		// The fake server returns the same record for every eventType, so
-		// whisparr-v3's two import pages rely on the dedup by record ID.
+		// The fake server returns the same record for every eventType; whisparr-v3's two import pages rely on
+		// the dedup by record ID.
 		{"whisparr-v3", instance.AppTypeWhisparrV3, "v3"},
 	}
 

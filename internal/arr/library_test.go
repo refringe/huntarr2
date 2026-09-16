@@ -60,8 +60,8 @@ func TestFetchRadarrLibrary(t *testing.T) {
 		t.Errorf("items[1].CurrentQualityIDs = %v, want empty", items[1].CurrentQualityIDs)
 	}
 
-	// Whisparr v3 scenes may carry a zero year and an identifier-style
-	// titleSlug; the label omits the year and the slug passes through.
+	// Whisparr v3 scenes may carry a zero year and an identifier-style titleSlug; the label omits the year and
+	// the slug passes through.
 	if items[2].Label != "Scene Title" {
 		t.Errorf("items[2].Label = %q, want %q (no year suffix)", items[2].Label, "Scene Title")
 	}

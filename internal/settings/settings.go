@@ -1,7 +1,5 @@
-// Package settings manages application settings stored as key/value pairs in
-// SQLite. Settings may be global (instance_id IS NULL) or per-instance
-// overrides. The Resolve method merges compiled defaults, global overrides,
-// and per-instance overrides into a single Resolved struct.
+// Package settings manages application settings stored as key/value pairs in SQLite. Settings may be global
+// (instance_id IS NULL) or per-instance overrides.
 package settings
 
 import (
@@ -13,8 +11,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// Setting keys used throughout the application. Each key corresponds to a
-// typed field in Resolved.
+// Setting keys used throughout the application; each corresponds to a typed field in Resolved.
 const (
 	KeyBatchSize         = "batch_size"
 	KeyCooldownPeriod    = "cooldown_period"
@@ -26,8 +23,6 @@ const (
 	KeySearchMissing     = "search_missing"
 )
 
-// validKeys enumerates every recognised setting key. Used by ValidKey to
-// perform membership checks.
 var validKeys = map[string]struct{}{
 	KeyBatchSize:         {},
 	KeyCooldownPeriod:    {},
@@ -42,19 +37,17 @@ var validKeys = map[string]struct{}{
 // ErrUnknownKey is returned when an unrecognised setting key is provided.
 var ErrUnknownKey = errors.New("unknown setting key")
 
-// ErrInvalidValue is returned when a setting value cannot be parsed to the
-// expected type for its key.
+// ErrInvalidValue is returned when a setting value cannot be parsed to the expected type for its key.
 var ErrInvalidValue = errors.New("invalid setting value")
 
-// SettingEntry is a key/value pair used when creating or updating settings
-// in batch. It is the public input type for Service.SetBatch.
+// SettingEntry is a key/value pair used when creating or updating settings in batch.
 type SettingEntry struct {
 	Key   string
 	Value string
 }
 
-// Setting represents a single stored key/value pair. A nil InstanceID
-// denotes a global setting; non-nil denotes a per-instance override.
+// Setting represents a single stored key/value pair. A nil InstanceID denotes a global setting; non-nil denotes a
+// per-instance override.
 type Setting struct {
 	ID         uuid.UUID
 	InstanceID *uuid.UUID
@@ -63,8 +56,7 @@ type Setting struct {
 	UpdatedAt  time.Time
 }
 
-// Resolved holds the effective settings for a given context after merging
-// compiled defaults, global overrides, and per-instance overrides.
+// Resolved holds the effective settings after merging defaults, global overrides, and per-instance overrides.
 type Resolved struct {
 	BatchSize         int           `json:"batchSize"`
 	CooldownPeriod    time.Duration `json:"cooldownPeriod"`
@@ -76,8 +68,7 @@ type Resolved struct {
 	SearchMissing     bool          `json:"searchMissing"`
 }
 
-// Defaults returns the compiled default settings used as the base layer
-// before global and per-instance overrides are applied.
+// Defaults returns the compiled default settings used as the base layer before overrides are applied.
 func Defaults() Resolved {
 	return Resolved{
 		BatchSize:         4,
@@ -97,8 +88,7 @@ func ValidKey(key string) bool {
 	return ok
 }
 
-// ParseHHMM converts a "HH:MM" string to minutes since midnight. It
-// requires exactly two digits for both the hour and minute components
+// ParseHHMM converts a "HH:MM" string to minutes since midnight, requiring exactly two digits for both components
 // (e.g. "09:30" is valid, "9:30" is not).
 func ParseHHMM(v string) (int, error) {
 	if len(v) != 5 || v[2] != ':' {

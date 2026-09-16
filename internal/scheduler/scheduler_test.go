@@ -107,9 +107,7 @@ type fakeArrSearcher struct {
 	searchCalls      []searchCall
 	searchErr        error
 
-	// upgradeableDelay makes Upgradeable sleep before returning, and
-	// upgradeableReturnedAt records when it returned, so tests can assert
-	// on scheduling decisions made after a slow cycle.
+	// upgradeableDelay makes Upgradeable sleep before returning; upgradeableReturnedAt records when it returned.
 	upgradeableDelay      time.Duration
 	upgradeableReturnedAt time.Time
 }
@@ -171,8 +169,7 @@ func (f *fakeInstanceLister) List(_ context.Context) ([]instance.Instance, error
 	return f.instances, nil
 }
 
-// fakePollTracker records poll calls and returns preconfigured
-// timestamps.
+// fakePollTracker records poll calls and returns preconfigured timestamps.
 type fakePollTracker struct {
 	lastPolled map[uuid.UUID]time.Time
 	pollCalls  []uuid.UUID
@@ -1110,8 +1107,7 @@ func TestNextSearchAtUsesCycleEndTime(t *testing.T) {
 		t.Fatalf("len(Instances) = %d, want 1", len(st.Instances))
 	}
 
-	// The schedule must be computed from the cycle's end, not the tick's
-	// start, or a slow cycle re-enters the instance back-to-back.
+	// The schedule must be computed from the cycle's end, or a slow cycle re-enters the instance back-to-back.
 	earliest := arrSearch.upgradeableReturnedAt.Add(settings.Defaults().SearchInterval)
 	if st.Instances[0].NextSearchAt.Before(earliest) {
 		t.Errorf("NextSearchAt = %v, want not before %v (cycle end + interval)",

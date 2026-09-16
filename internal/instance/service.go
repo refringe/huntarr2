@@ -9,9 +9,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// defaultTimeoutMs is the timeout applied to new instances when the caller
-// does not provide one. It matches the schema column default and the value
-// the web UI seeds new connection forms with.
+// defaultTimeoutMs is the timeout applied to new instances when the caller does not provide one; it matches the
+// schema column default and the value the web UI seeds new connection forms with.
 const defaultTimeoutMs = 30000
 
 // maxTimeoutMs is the upper bound for instance timeouts (5 minutes).
@@ -49,8 +48,7 @@ func (s *Service) Get(ctx context.Context, id uuid.UUID) (Instance, error) {
 	return s.repo.Get(ctx, id)
 }
 
-// Create validates and persists a new instance. Callers must set Name,
-// AppType, BaseURL, and APIKey. TimeoutMs defaults to 30000 when zero.
+// Create validates and persists a new instance; TimeoutMs defaults to 30000 when zero.
 func (s *Service) Create(ctx context.Context, inst *Instance) error {
 	if inst.TimeoutMs == 0 {
 		inst.TimeoutMs = defaultTimeoutMs
@@ -63,10 +61,7 @@ func (s *Service) Create(ctx context.Context, inst *Instance) error {
 	return s.repo.Create(ctx, inst)
 }
 
-// Update applies changes to an existing instance and returns the updated
-// value. The instance is fetched first so that AppType cannot be altered
-// after creation. The returned Instance carries the database assigned
-// updated_at timestamp.
+// Update applies changes to an existing instance and returns the updated value; AppType is never altered.
 func (s *Service) Update(ctx context.Context, id uuid.UUID, inst *Instance) (Instance, error) {
 	existing, err := s.repo.Get(ctx, id)
 	if err != nil {
@@ -75,9 +70,7 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, inst *Instance) (Ins
 
 	existing.Name = inst.Name
 	existing.BaseURL = inst.BaseURL
-	// A blank API key on update means "keep the existing key". The UI leaves
-	// the field empty when editing so the stored key is never leaked back to
-	// the client, so an empty value here must not overwrite it.
+	// A blank API key on update means "keep the existing key".
 	if key := strings.TrimSpace(inst.APIKey); key != "" {
 		existing.APIKey = key
 	}
@@ -100,9 +93,7 @@ func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
 	return s.repo.Delete(ctx, id)
 }
 
-// validate checks that all required fields on inst are present and
-// sensible. Whitespace is trimmed from Name and APIKey before
-// validation so that the stored values are clean.
+// validate checks required fields, trimming whitespace from Name and APIKey before validation.
 func validate(inst *Instance) error {
 	inst.Name = strings.TrimSpace(inst.Name)
 	if inst.Name == "" {

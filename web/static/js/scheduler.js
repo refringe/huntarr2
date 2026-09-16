@@ -1,5 +1,4 @@
-// schedulerPanel manages the scheduler status widget on the Home page.
-// It polls the scheduler API and updates the panel in real time.
+// schedulerPanel manages the scheduler status widget on the Home page, polling the scheduler API.
 
 // Polling interval in milliseconds for scheduler status refresh.
 var SCHEDULER_POLL_INTERVAL_MS = 30000;

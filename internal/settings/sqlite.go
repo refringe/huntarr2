@@ -21,8 +21,7 @@ func NewSQLiteRepository(db *sql.DB) *SQLiteRepository {
 	return &SQLiteRepository{db: db}
 }
 
-// ListGlobal returns all global settings (those with no instance_id)
-// ordered by setting_key.
+// ListGlobal returns all global settings (those with no instance_id) ordered by setting_key.
 func (r *SQLiteRepository) ListGlobal(ctx context.Context) ([]Setting, error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, instance_id, setting_key, value, updated_at
@@ -35,8 +34,7 @@ func (r *SQLiteRepository) ListGlobal(ctx context.Context) ([]Setting, error) {
 	return scanSettings(rows)
 }
 
-// ListByInstance returns all settings for the given instance ordered by
-// setting_key.
+// ListByInstance returns all settings for the given instance ordered by setting_key.
 func (r *SQLiteRepository) ListByInstance(ctx context.Context, instanceID uuid.UUID) ([]Setting, error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, instance_id, setting_key, value, updated_at
@@ -49,8 +47,7 @@ func (r *SQLiteRepository) ListByInstance(ctx context.Context, instanceID uuid.U
 	return scanSettings(rows)
 }
 
-// scanSettings collects Setting rows from an open *sql.Rows cursor. The
-// caller does not need to close rows; scanSettings handles that.
+// scanSettings collects Setting rows from an open *sql.Rows cursor, closing rows itself.
 func scanSettings(rows *sql.Rows) ([]Setting, error) {
 	defer rows.Close() //nolint:errcheck // checked via rows.Err below
 
@@ -93,10 +90,8 @@ func scanSettings(rows *sql.Rows) ([]Setting, error) {
 	return out, nil
 }
 
-// Upsert creates or updates a setting. For global settings (InstanceID is
-// nil), it uses the partial unique index on setting_key where instance_id
-// IS NULL. For per-instance settings, it uses ON CONFLICT on the composite
-// unique index.
+// Upsert creates or updates a setting: global settings (nil InstanceID) conflict on the partial unique index over
+// setting_key, per-instance settings on the composite unique index.
 func (r *SQLiteRepository) Upsert(ctx context.Context, s *Setting) error {
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	id := uuid.New().String()
@@ -129,8 +124,7 @@ func (r *SQLiteRepository) Upsert(ctx context.Context, s *Setting) error {
 	return nil
 }
 
-// execUpsert runs the upsert SQL for a single setting within an existing
-// transaction.
+// execUpsert runs the upsert SQL for a single setting within an existing transaction.
 func execUpsert(ctx context.Context, tx *sql.Tx, s *Setting) error {
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	id := uuid.New().String()
@@ -163,8 +157,7 @@ func execUpsert(ctx context.Context, tx *sql.Tx, s *Setting) error {
 	return nil
 }
 
-// UpsertBatch atomically creates or updates multiple settings in a single
-// database transaction.
+// UpsertBatch atomically creates or updates multiple settings in a single database transaction.
 func (r *SQLiteRepository) UpsertBatch(ctx context.Context, settings []Setting) error {
 	return database.WithTx(ctx, r.db, func(tx *sql.Tx) error {
 		for _, s := range settings {
@@ -198,8 +191,7 @@ func (r *SQLiteRepository) Delete(ctx context.Context, instanceID *uuid.UUID, ke
 	return nil
 }
 
-// DeleteBatch atomically removes multiple settings in a single database
-// transaction.
+// DeleteBatch atomically removes multiple settings in a single database transaction.
 func (r *SQLiteRepository) DeleteBatch(ctx context.Context, instanceID *uuid.UUID, keys []string) error {
 	return database.WithTx(ctx, r.db, func(tx *sql.Tx) error {
 		for _, key := range keys {

@@ -23,24 +23,17 @@ func (s *Server) handleHomePage(w http.ResponseWriter, r *http.Request) {
 	data := s.fetchHomeData(ctx)
 	data.AssetVersion = s.assetVersion
 
-	// Templ streams directly to the ResponseWriter, so the status header is
-	// sent before rendering begins. If Render fails partway through, the
-	// client receives partial HTML with no way to signal the error in the
-	// HTTP status. Logging is the best recovery available here.
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := pages.Home(data).Render(ctx, w); err != nil {
 		log.Error().Err(err).Msg("rendering home page")
 	}
 }
 
-// fetchHomeData gathers dashboard data from all services concurrently.
-// Individual service errors are logged but do not abort the collection so
-// that partial data is still available rather than a blank error screen.
+// fetchHomeData gathers dashboard data from all services concurrently, logging and tolerating individual failures.
 func (s *Server) fetchHomeData(ctx context.Context) pages.HomeData {
 	var data pages.HomeData
 
-	// The instance list is a dependency for activity stat aggregation, so
-	// it must complete before the concurrent calls below.
+	// Stat aggregation below needs the instance list, which must be fetched before the concurrent calls.
 	insts, err := s.instances.List(ctx)
 	if err != nil {
 		log.Error().Err(err).Msg("fetching instances for home page")
@@ -53,11 +46,6 @@ func (s *Server) fetchHomeData(ctx context.Context) pages.HomeData {
 		}
 	}
 
-	// The remaining service calls are independent; run them concurrently
-	// to reduce dashboard latency. Each goroutine writes to a dedicated
-	// variable; wg.Wait provides the happens-before guarantee. If a
-	// service call panics, the deferred wg.Done still executes, and the
-	// panic propagates to the recovery middleware via the HTTP handler.
 	var (
 		allStats    []activity.ActionStats
 		recentStats []activity.ActionStats
@@ -110,7 +98,6 @@ func (s *Server) fetchHomeData(ctx context.Context) pages.HomeData {
 	data.SearchesThisHour = int(schedStatus.SearchesThisHour)
 	data.HourlyLimit = schedStatus.HourlyLimit
 
-	// Assemble results that depend on instMap resolution.
 	if allStats != nil {
 		allTotals, perInst := aggregateStats(allStats, instMap)
 		data.AllTimeSearches = allTotals.searches
@@ -147,8 +134,7 @@ type activityTotals struct {
 	downloads int
 }
 
-// aggregateStats sums activity counts across ActionStats entries, building
-// a per-instance breakdown and overall totals.
+// aggregateStats sums activity counts into overall totals and a per-instance breakdown.
 func aggregateStats(
 	stats []activity.ActionStats,
 	instMap map[string]instance.Instance,
@@ -199,8 +185,7 @@ func aggregateStats(
 			acc.downloads += s.Count
 			totals.downloads += s.Count
 		case activity.ActionHealthCheck, activity.ActionRateLimit:
-			// Health checks and rate limit events are logged for
-			// auditing but not aggregated into dashboard counters.
+			// Logged for auditing but not aggregated into dashboard counters.
 		}
 	}
 

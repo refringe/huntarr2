@@ -1,6 +1,5 @@
-// Package instance defines the domain types and errors for application
-// instance management. An instance represents a configured connection to an
-// *arr application (Sonarr, Radarr, Lidarr, or Whisparr v2/v3).
+// Package instance defines the domain types and errors for application instance management. An instance represents
+// a configured connection to an *arr application (Sonarr, Radarr, Lidarr, or Whisparr v2/v3).
 package instance
 
 import (
@@ -15,9 +14,8 @@ import (
 // AppType identifies the type of *arr application an instance connects to.
 type AppType string
 
-// Application type constants for each supported *arr application. The two
-// Whisparr generations are separate types: v2 is episode-based (a Sonarr
-// fork) and v3 "Eros" is movie-based (a Radarr fork).
+// Application type constants for each supported *arr application. The two Whisparr generations are separate types:
+// v2 is episode-based (a Sonarr fork) and v3 "Eros" is movie-based (a Radarr fork).
 const (
 	AppTypeSonarr     AppType = "sonarr"
 	AppTypeRadarr     AppType = "radarr"
@@ -26,9 +24,8 @@ const (
 	AppTypeWhisparrV3 AppType = "whisparr-v3"
 )
 
-// allAppTypes lists every recognised application type in display order.
-// validAppTypes and appTypeLabels are keyed on the same set; the guard
-// test in service_test.go keeps them in sync.
+// allAppTypes lists every recognised application type in display order; validAppTypes and appTypeLabels are keyed
+// on the same set.
 var allAppTypes = []AppType{
 	AppTypeSonarr,
 	AppTypeRadarr,
@@ -46,8 +43,7 @@ var appTypeLabels = map[AppType]string{
 	AppTypeWhisparrV3: "Whisparr V3",
 }
 
-// validAppTypes enumerates every recognised application type. Used by
-// AppType.Valid for membership checks.
+// validAppTypes enumerates every recognised application type.
 var validAppTypes = func() map[AppType]struct{} {
 	m := make(map[AppType]struct{}, len(allAppTypes))
 	for _, t := range allAppTypes {
@@ -67,8 +63,7 @@ func (t AppType) Valid() bool {
 	return ok
 }
 
-// Label returns the human-readable name for t, falling back to the raw
-// value for unrecognised types.
+// Label returns the human-readable name for t, falling back to the raw value for unrecognised types.
 func (t AppType) Label() string {
 	if label, ok := appTypeLabels[t]; ok {
 		return label

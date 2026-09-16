@@ -15,13 +15,11 @@ import (
 	"github.com/refringe/huntarr2/internal/instance"
 )
 
-// ErrVersionMismatch indicates a connection test reached the server, but
-// the reported major version does not match the selected application
-// type (e.g. a Whisparr v2 server behind a whisparr-v3 instance).
+// ErrVersionMismatch indicates a connection test reached the server, but the reported major version does not match
+// the selected application type.
 var ErrVersionMismatch = errors.New("application version mismatch")
 
-// InstanceStatus holds the connection status and version for a single *arr
-// instance.
+// InstanceStatus holds the connection status and version for a single *arr instance.
 type InstanceStatus struct {
 	ID        uuid.UUID
 	Name      string
@@ -30,21 +28,17 @@ type InstanceStatus struct {
 	Version   string
 }
 
-// Service aggregates data from all *arr instances (Sonarr, Radarr, Lidarr,
-// Whisparr v2/v3).
+// Service aggregates data from all *arr instances (Sonarr, Radarr, Lidarr, Whisparr v2/v3).
 type Service struct {
 	instances instance.Repository
 }
 
-// NewService returns a Service that reads *arr instances from the given
-// repository.
+// NewService returns a Service that reads *arr instances from the given repository.
 func NewService(instances instance.Repository) *Service {
 	return &Service{instances: instances}
 }
 
-// Status fetches connection status for every instance concurrently, each
-// probe bounded by the status timeout. Unreachable instances are marked
-// as disconnected rather than causing the call to fail.
+// Status fetches connection status for every instance concurrently, marking unreachable instances as disconnected.
 func (s *Service) Status(ctx context.Context) ([]InstanceStatus, error) {
 	insts, err := s.instances.List(ctx)
 	if err != nil {
@@ -85,11 +79,8 @@ func (s *Service) Status(ctx context.Context) ([]InstanceStatus, error) {
 	return statuses, nil
 }
 
-// TestConnection attempts to reach an *arr instance at the given address
-// and returns nil on success. The probe is additionally bounded by the
-// status timeout, so a test never hangs for the full per-request timeout.
-// When the application type demands a specific major version, the server's
-// reported version is checked and a mismatch returns ErrVersionMismatch.
+// TestConnection attempts to reach an *arr instance at the given address, returning nil on success and
+// ErrVersionMismatch when the server's major version does not match one the application type demands.
 func (s *Service) TestConnection(ctx context.Context, appType instance.AppType, baseURL, apiKey string, timeoutMs int) error {
 	timeout := time.Duration(timeoutMs) * time.Millisecond
 	app, err := NewApp(appType, baseURL, apiKey, timeout)
@@ -101,8 +92,6 @@ func (s *Service) TestConnection(ctx context.Context, appType instance.AppType, 
 		return fmt.Errorf("testing connection: %w", err)
 	}
 	if want := appConfigs[appType].versionMajor; want > 0 {
-		// An unparsable version reports 0 and skips the check: a healthy
-		// connection is never failed on version formatting alone.
 		if got := majorVersion(sys.Version); got > 0 && got != want {
 			return fmt.Errorf("%w: the server reports version %s; expected a v%d server for %s",
 				ErrVersionMismatch, sys.Version, want, appType)
@@ -111,8 +100,7 @@ func (s *Service) TestConnection(ctx context.Context, appType instance.AppType, 
 	return nil
 }
 
-// majorVersion returns the leading integer of a dotted version string, or
-// 0 when it cannot be parsed.
+// majorVersion returns the leading integer of a dotted version string, or 0 when it cannot be parsed.
 func majorVersion(version string) int {
 	head, _, _ := strings.Cut(version, ".")
 	major, err := strconv.Atoi(head)
@@ -122,17 +110,15 @@ func majorVersion(version string) int {
 	return major
 }
 
-// UpgradeResult holds the items eligible for upgrade, monitored items
-// with no file (missing), and diagnostic statistics from the filtering
-// process.
+// UpgradeResult holds the items eligible for upgrade, monitored items with no file (missing), and diagnostic
+// statistics from the filtering process.
 type UpgradeResult struct {
 	Items        []UpgradeItem
 	MissingItems []UpgradeItem
 	Stats        FilterStats
 }
 
-// Upgradeable returns all items from the specified instance whose
-// current file quality is below the profile's cutoff.
+// Upgradeable returns all items from the specified instance whose current file quality is below the profile's cutoff.
 func (s *Service) Upgradeable(ctx context.Context, instanceID uuid.UUID) (UpgradeResult, error) {
 	app, err := s.appForInstance(ctx, instanceID)
 	if err != nil {
@@ -141,10 +127,7 @@ func (s *Service) Upgradeable(ctx context.Context, instanceID uuid.UUID) (Upgrad
 	return s.upgradeableWith(ctx, app)
 }
 
-// upgradeableWith contains the upgrade detection logic shared by
-// Upgradeable and SearchCycle. Accepting an App avoids constructing a
-// second client when SearchCycle needs both upgrade detection and
-// search on the same instance.
+// upgradeableWith fetches an app's quality profiles and library, splitting items into upgradeable and missing sets.
 func (s *Service) upgradeableWith(ctx context.Context, app App) (UpgradeResult, error) {
 	profiles, err := app.QualityProfiles(ctx)
 	if err != nil {
@@ -170,8 +153,7 @@ func (s *Service) upgradeableWith(ctx context.Context, app App) (UpgradeResult, 
 	}, nil
 }
 
-// Search triggers a search for the given item IDs on the specified
-// instance.
+// Search triggers a search for the given item IDs on the specified instance.
 func (s *Service) Search(ctx context.Context, instanceID uuid.UUID, itemIDs []int) (SearchResult, error) {
 	app, err := s.appForInstance(ctx, instanceID)
 	if err != nil {
@@ -180,12 +162,8 @@ func (s *Service) Search(ctx context.Context, instanceID uuid.UUID, itemIDs []in
 	return app.Search(ctx, itemIDs)
 }
 
-// SearchCycle fetches all upgradeable items and triggers a search for
-// up to batchSize of them. It returns the number of items searched.
-//
-// Unlike the scheduler's per-instance cycle, SearchCycle intentionally
-// bypasses cooldown filtering and recording. Manual API searches should
-// execute immediately regardless of when the item was last searched.
+// SearchCycle fetches all upgradeable and missing items and triggers a search for up to batchSize of them,
+// bypassing cooldown filtering and recording. It returns the number of items searched.
 func (s *Service) SearchCycle(ctx context.Context, instanceID uuid.UUID, batchSize int) (int, error) {
 	app, err := s.appForInstance(ctx, instanceID)
 	if err != nil {
@@ -220,8 +198,7 @@ func (s *Service) SearchCycle(ctx context.Context, instanceID uuid.UUID, batchSi
 	return len(ids), nil
 }
 
-// History fetches recent import history from the specified instance,
-// returning records dated after since.
+// History fetches recent import history from the specified instance, returning records dated after since.
 func (s *Service) History(ctx context.Context, instanceID uuid.UUID, since time.Time, pageSize int) ([]HistoryRecord, error) {
 	app, err := s.appForInstance(ctx, instanceID)
 	if err != nil {
@@ -230,8 +207,6 @@ func (s *Service) History(ctx context.Context, instanceID uuid.UUID, since time.
 	return app.History(ctx, since, pageSize)
 }
 
-// appForInstance looks up an instance by ID and constructs the appropriate
-// App client.
 func (s *Service) appForInstance(ctx context.Context, id uuid.UUID) (App, error) {
 	inst, err := s.instances.Get(ctx, id)
 	if err != nil {
@@ -244,8 +219,6 @@ func (s *Service) appForInstance(ctx context.Context, id uuid.UUID) (App, error)
 	return app, nil
 }
 
-// instanceTimeout converts an instance's TimeoutMs field to a
-// time.Duration.
 func instanceTimeout(inst instance.Instance) time.Duration {
 	return time.Duration(inst.TimeoutMs) * time.Millisecond
 }

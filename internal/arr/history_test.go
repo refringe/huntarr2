@@ -16,8 +16,8 @@ func TestFetchArrHistory(t *testing.T) {
 	recent := now.Add(-1 * time.Hour)
 	since := now.Add(-24 * time.Hour)
 
-	// Delete events carry the per-app item ID and a reason field. The *arr
-	// API returns PascalCase enum values (e.g. "Upgrade") via .ToString().
+	// Delete events carry the per-app item ID and a reason field; the *arr API returns PascalCase values like
+	// "Upgrade".
 	deleteRecords := []map[string]any{
 		{
 			"id":        100,

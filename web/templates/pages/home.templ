@@ -7,9 +7,8 @@ import (
 	"github.com/refringe/huntarr2/web/templates/layouts"
 )
 
-// schedulerPanelInit returns an x-data expression that seeds the Alpine
-// component with the server-rendered scheduler state, preventing a flash
-// when the first client poll overwrites the initial DOM.
+// schedulerPanelInit returns an x-data expression seeding the Alpine component with the server-rendered scheduler
+// state.
 func schedulerPanelInit(data HomeData) string {
 	return fmt.Sprintf(
 		"{ ...schedulerPanel(), status: { running: %t, searchesThisHour: %d, hourlyLimit: %d, instances: [] } }",

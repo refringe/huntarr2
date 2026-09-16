@@ -194,9 +194,7 @@ func (rt *Router) handleTestInstance(w http.ResponseWriter, r *http.Request) {
 	testErr := rt.arr.TestConnection(r.Context(), inst.AppType, inst.BaseURL, inst.APIKey, inst.TimeoutMs)
 	if testErr != nil {
 		log.Warn().Err(testErr).Str("instance", id.String()).Msg("connection test failed")
-		// A version mismatch means the server was reached; surface the
-		// specific message so the user learns they picked the wrong
-		// application type rather than a bad URL or key.
+		// A version mismatch means the server was reached; surface its specific message.
 		message := "connection test failed; check the instance URL and API key"
 		if errors.Is(testErr, arr.ErrVersionMismatch) {
 			message = testErr.Error()

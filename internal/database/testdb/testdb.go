@@ -1,5 +1,4 @@
-// Package testdb provides a lightweight SQLite database for tests. No Docker
-// containers or external services are required.
+// Package testdb provides a lightweight SQLite database for tests, with no Docker or external services.
 package testdb
 
 import (
@@ -12,9 +11,8 @@ import (
 	"github.com/refringe/huntarr2/internal/database"
 )
 
-// New creates a temporary SQLite database in a test-scoped directory, runs
-// all migrations, and returns the open *sql.DB. The database file is
-// automatically removed when the test completes.
+// New creates a temporary SQLite database in a test-scoped directory, runs all migrations, and returns the open
+// *sql.DB. The database file is removed when the test completes.
 func New(t *testing.T) *sql.DB {
 	t.Helper()
 

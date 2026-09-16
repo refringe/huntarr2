@@ -20,9 +20,7 @@ func NewSQLiteRepository(db *sql.DB) *SQLiteRepository {
 	return &SQLiteRepository{db: db}
 }
 
-// FilterCoolingDown returns item IDs from the provided list that were
-// searched within the cooldown period and should be excluded from the next
-// search.
+// FilterCoolingDown returns item IDs from the provided list that were searched within the cooldown period.
 func (r *SQLiteRepository) FilterCoolingDown(
 	ctx context.Context,
 	instanceID uuid.UUID,
@@ -33,7 +31,6 @@ func (r *SQLiteRepository) FilterCoolingDown(
 		return nil, nil
 	}
 
-	// Build an IN clause with one placeholder per item ID.
 	placeholders := make([]string, len(itemIDs))
 	args := make([]any, 0, len(itemIDs)+2)
 	args = append(args, instanceID.String())
@@ -72,9 +69,7 @@ func (r *SQLiteRepository) FilterCoolingDown(
 	return coolingDown, nil
 }
 
-// RecordSearches upserts cooldown records for the given item IDs. If a
-// record already exists for an (instance, item) pair, its searched_at is
-// updated to now().
+// RecordSearches upserts cooldown records for the given item IDs, updating searched_at to now on conflict.
 func (r *SQLiteRepository) RecordSearches(
 	ctx context.Context,
 	instanceID uuid.UUID,
@@ -114,8 +109,7 @@ func (r *SQLiteRepository) RecordSearches(
 	return nil
 }
 
-// DeleteExpired removes cooldown records whose searched_at is older than
-// the given duration relative to now.
+// DeleteExpired removes cooldown records whose searched_at is older than the given duration relative to now.
 func (r *SQLiteRepository) DeleteExpired(
 	ctx context.Context,
 	olderThan time.Duration,

@@ -7,8 +7,7 @@ import (
 	"fmt"
 )
 
-// WithTx executes fn within a database transaction. The transaction is
-// committed if fn returns nil and rolled back otherwise.
+// WithTx executes fn within a database transaction, committing when fn returns nil and rolling back otherwise.
 func WithTx(ctx context.Context, db *sql.DB, fn func(tx *sql.Tx) error) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {

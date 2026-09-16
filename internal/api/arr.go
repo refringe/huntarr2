@@ -16,11 +16,8 @@ import (
 // maxSearchBatchSize is the upper bound for a single search request.
 const maxSearchBatchSize = 1000
 
-// searchCycleWriteBudget extends the HTTP write deadline for a manual
-// search cycle beyond the server's write timeout. It must cover the worst
-// case: quality profiles and the search command (up to the per-request
-// cap each) plus the library fetch budget, with margin to write the
-// response.
+// searchCycleWriteBudget extends the HTTP write deadline for a manual search cycle: it must cover the quality
+// profile and search command requests plus the library fetch budget, with margin to write the response.
 const searchCycleWriteBudget = 30 * time.Minute
 
 type searchRequest struct {
@@ -45,14 +42,11 @@ func (rt *Router) handleInstanceSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// A search cycle legitimately outlives the server's write timeout;
-	// writers that do not support deadlines keep the shorter default.
 	if err := http.NewResponseController(w).SetWriteDeadline(time.Now().Add(searchCycleWriteBudget)); err != nil {
 		log.Warn().Err(err).Msg("could not extend write deadline for search cycle")
 	}
 
-	// An empty body is accepted: batchSize defaults to 50 below when the
-	// caller does not specify one.
+	// An empty body (io.EOF) is accepted.
 	var req searchRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
 		writeError(w, http.StatusBadRequest, "invalid request body")

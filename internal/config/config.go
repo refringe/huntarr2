@@ -20,8 +20,7 @@ const (
 	envAuthPassword      = "AUTH_PASSWORD"
 )
 
-// Config holds all application configuration values loaded from environment
-// variables.
+// Config holds all application configuration values loaded from environment variables.
 type Config struct {
 	// Port is the TCP port the HTTP server listens on.
 	Port int
@@ -31,19 +30,16 @@ type Config struct {
 	DatabasePath string
 	// SchedulerTickSecs is the interval between scheduler ticks in seconds.
 	SchedulerTickSecs int
-	// EncryptionKey is the 32-byte AES-256-GCM key for encrypting API keys
-	// at rest. The ENCRYPTION_KEY environment variable is required.
+	// EncryptionKey is the required 32-byte AES-256-GCM key for encrypting API keys at rest.
 	EncryptionKey []byte
-	// AuthUsername is the HTTP Basic Authentication username. Both
-	// AuthUsername and AuthPassword must be set to enable authentication.
+	// AuthUsername is the HTTP Basic Authentication username; both AuthUsername and AuthPassword must be set to
+	// enable authentication.
 	AuthUsername string
 	// AuthPassword is the HTTP Basic Authentication password.
 	AuthPassword string
 }
 
-// Load reads configuration from environment variables and returns a
-// validated Config. Parse errors are accumulated so all invalid values
-// are reported at once.
+// Load reads configuration from environment variables and returns a validated Config; parse errors are accumulated.
 func Load() (*Config, error) {
 	var p parser
 
@@ -68,24 +64,17 @@ func Load() (*Config, error) {
 	return cfg, nil
 }
 
-// IsDevelopment reports whether the application is running in a
-// development context. It uses the LOG_LEVEL as a heuristic: debug
-// level implies a developer workstation. This is intentionally coarse;
-// production deployments should never run at debug level, so the
-// approximation is acceptable for choosing human-friendly console
-// logging versus structured JSON output.
+// IsDevelopment reports whether the application is running in a development context, approximated as debug log level.
 func (c *Config) IsDevelopment() bool {
 	return c.LogLevel == zerolog.DebugLevel
 }
 
-// AuthEnabled returns true when both AuthUsername and AuthPassword are
-// configured, enabling HTTP Basic Authentication.
+// AuthEnabled returns true when both AuthUsername and AuthPassword are configured.
 func (c *Config) AuthEnabled() bool {
 	return c.AuthUsername != "" && c.AuthPassword != ""
 }
 
-// validate checks all configuration constraints and returns an error
-// joining every violation found.
+// validate checks all configuration constraints, returning an error joining every violation found.
 func (c *Config) validate() error {
 	var errs []error
 
@@ -116,10 +105,7 @@ func (c *Config) validate() error {
 	return nil
 }
 
-// EnvKeys returns every environment variable that Load() reads. This
-// is exported so integration tests in other packages can clear the
-// environment without duplicating the list. A fresh slice is returned
-// on each call to prevent callers from mutating shared state.
+// EnvKeys returns a fresh slice of every environment variable that Load reads.
 func EnvKeys() []string {
 	return []string{
 		envPort, envLogLevel, envDatabasePath,

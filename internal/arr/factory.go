@@ -8,17 +8,14 @@ import (
 	"github.com/refringe/huntarr2/internal/instance"
 )
 
-// *arr history event type integer IDs. Each application defines its own
-// enum; the values below are extracted from the respective source
-// repositories (src/NzbDrone.Core/History in each) and must match the
-// server-side definitions.
+// *arr history event type integer IDs. Each application defines its own enum; the values below are extracted from
+// the respective source repositories (src/NzbDrone.Core/History) and must match the server-side definitions.
 const (
 	// Sonarr / Whisparr v2 (EpisodeHistoryEventType).
 	sonarrImported    = 3 // downloadFolderImported
 	sonarrFileDeleted = 5 // episodeFileDeleted
 
-	// Radarr (MovieHistoryEventType): note 2 is a deprecated slot and 4
-	// is downloadFailed.
+	// Radarr (MovieHistoryEventType): note 2 is a deprecated slot and 4 is downloadFailed.
 	radarrImported    = 3 // downloadFolderImported
 	radarrFileDeleted = 6 // movieFileDeleted
 
@@ -26,16 +23,14 @@ const (
 	lidarrImported    = 3 // trackFileImported
 	lidarrFileDeleted = 5 // trackFileDeleted
 
-	// Whisparr v3 "Eros" (MovieHistoryEventType): Radarr's enum plus
-	// diskScanImported, a second import-completed event written when a
-	// disk scan finds a new in-place file.
+	// Whisparr v3 "Eros" (MovieHistoryEventType): Radarr's enum plus diskScanImported, a second import-completed
+	// event written when a disk scan finds a new in-place file.
 	whisparrV3Imported     = 3  // downloadFolderImported
 	whisparrV3DiskImported = 10 // diskScanImported
 	whisparrV3FileDeleted  = 6  // movieFileDeleted
 )
 
-// Per-application command names, search ID field names, and history item
-// ID field names referenced by appConfigs.
+// Per-application command names, search ID field names, and history item ID field names referenced by appConfigs.
 const (
 	cmdEpisodeSearch = "EpisodeSearch"
 	cmdMoviesSearch  = "MoviesSearch"
@@ -50,10 +45,7 @@ const (
 	historyFieldAlbum   = "albumId"
 )
 
-// newHistoryFunc returns a fetchHistoryFunc that binds the per-app event
-// type IDs and item ID field into a closure matching the fetchHistoryFunc
-// signature. Applications with more than one import-completed event type
-// list them all in importEventTypes.
+// newHistoryFunc returns a fetchHistoryFunc bound to the per-app event type IDs and item ID field.
 func newHistoryFunc(deleteEventType int, importEventTypes []int, itemIDField string) fetchHistoryFunc {
 	return func(ctx context.Context, c *client, apiVersion string,
 		since time.Time, pageSize int,
@@ -63,8 +55,7 @@ func newHistoryFunc(deleteEventType int, importEventTypes []int, itemIDField str
 	}
 }
 
-// appConfigs maps each supported application type to its adapter
-// configuration. The map is read-only after initialisation.
+// appConfigs maps each supported application type to its read-only adapter configuration.
 var appConfigs = map[instance.AppType]appConfig{
 	instance.AppTypeSonarr: {
 		name:         string(instance.AppTypeSonarr),
@@ -90,9 +81,8 @@ var appConfigs = map[instance.AppType]appConfig{
 		fetchLibrary: fetchLidarrLibrary,
 		fetchHistory: newHistoryFunc(lidarrFileDeleted, []int{lidarrImported}, historyFieldAlbum),
 	},
-	// Whisparr v2 shares Sonarr's episode-based structure and API. Both
-	// Whisparr generations report appName "Whisparr" on system/status, so
-	// versionMajor lets a connection test tell them apart.
+	// Whisparr v2 shares Sonarr's episode-based structure and API. Both Whisparr generations report appName
+	// "Whisparr" on system/status; versionMajor tells a connection test which generation it reached.
 	instance.AppTypeWhisparrV2: {
 		name:         string(instance.AppTypeWhisparrV2),
 		apiVersion:   "v3",
@@ -115,8 +105,7 @@ var appConfigs = map[instance.AppType]appConfig{
 	},
 }
 
-// NewApp constructs the appropriate App implementation for the given
-// application type.
+// NewApp constructs the appropriate App implementation for the given application type.
 func NewApp(appType instance.AppType, baseURL, apiKey string, timeout time.Duration) (App, error) {
 	cfg, ok := appConfigs[appType]
 	if !ok {

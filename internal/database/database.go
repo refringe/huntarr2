@@ -10,9 +10,8 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// Open creates a new SQLite database connection at the given file path and
-// configures pragmas for WAL mode, foreign key enforcement, and a sensible
-// busy timeout. The returned *sql.DB is safe for concurrent use.
+// Open creates a SQLite connection at the given file path, configuring pragmas for WAL mode, foreign key
+// enforcement, and a busy timeout. The returned *sql.DB is safe for concurrent use.
 func Open(path string) (*sql.DB, error) {
 	db, err := sql.Open("sqlite", path)
 	if err != nil {
@@ -21,10 +20,6 @@ func Open(path string) (*sql.DB, error) {
 
 	ctx := context.Background()
 
-	// WAL mode allows concurrent reads while a write is in progress.
-	// foreign_keys must be enabled per-connection in SQLite.
-	// busy_timeout prevents immediate SQLITE_BUSY errors under contention.
-	// synchronous=NORMAL is safe with WAL and reduces fsync overhead.
 	pragmas := []string{
 		"PRAGMA journal_mode=WAL",
 		"PRAGMA foreign_keys=ON",
@@ -38,11 +33,7 @@ func Open(path string) (*sql.DB, error) {
 		}
 	}
 
-	// SQLite serialises writes internally. Limiting to one open connection
-	// for writes avoids lock contention; WAL mode still permits concurrent
-	// readers. With database/sql, SetMaxOpenConns(1) ensures all
-	// operations share a single connection, which keeps foreign_keys=ON
-	// active (pragmas are per-connection).
+	// A single shared connection serialises writes and keeps the per-connection pragmas active.
 	db.SetMaxOpenConns(1)
 
 	if err := db.PingContext(ctx); err != nil {
