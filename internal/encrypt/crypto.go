@@ -1,5 +1,4 @@
-// Package encrypt provides AES-256-GCM encryption and decryption for sensitive
-// values stored at rest, such as API keys.
+// Package encrypt provides AES-256-GCM encryption for sensitive values stored at rest, such as API keys.
 package encrypt
 
 import (
@@ -12,8 +11,7 @@ import (
 
 const keyLength = 32
 
-// Encrypt encrypts plaintext using AES-256-GCM with the provided 32-byte key. A random nonce is prepended to the
-// ciphertext, and the result is returned as a base64-encoded string.
+// Encrypt returns base64(nonce || AES-256-GCM ciphertext) of plaintext under the 32-byte key.
 func Encrypt(plaintext string, key []byte) (string, error) {
 	if len(key) != keyLength {
 		return "", fmt.Errorf("encryption key must be %d bytes, got %d", keyLength, len(key))
@@ -38,8 +36,7 @@ func Encrypt(plaintext string, key []byte) (string, error) {
 	return base64.StdEncoding.EncodeToString(sealed), nil
 }
 
-// Decrypt reverses Encrypt: it base64-decodes the input, extracts the nonce, and decrypts the remaining ciphertext
-// using AES-256-GCM with the provided 32-byte key.
+// Decrypt reverses Encrypt using the 32-byte key.
 func Decrypt(ciphertext string, key []byte) (string, error) {
 	if len(key) != keyLength {
 		return "", fmt.Errorf("decryption key must be %d bytes, got %d", keyLength, len(key))

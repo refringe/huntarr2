@@ -1,8 +1,6 @@
 package arr
 
-// qualityRank builds a map from quality/group ID to ordinal rank within a profile; higher rank means higher
-// quality. Qualities within a group share the same rank, the group's own ID also maps to that rank, and only
-// allowed entries are included.
+// qualityRank maps each allowed quality and group ID to its ordinal rank; a group's members share the group's rank.
 func qualityRank(profile QualityProfile) map[int]int {
 	ranks := make(map[int]int)
 	for i, entry := range profile.Items {
@@ -33,10 +31,7 @@ func cutoffRank(profile QualityProfile, ranks map[int]int) int {
 	return -1
 }
 
-// filterUpgradeable returns items whose current quality rank is below the profile's cutoff, skipping items without
-// files, unmonitored items, items with no known quality IDs, and items whose profile blocks upgrades. Items with
-// multiple quality IDs (Lidarr albums) are represented by their lowest ranked quality. The returned FilterStats
-// report how many items were excluded at each stage.
+// filterUpgradeable returns items whose lowest current quality rank is below their profile's cutoff, with FilterStats.
 func filterUpgradeable(
 	items []LibraryItem,
 	profiles map[int]QualityProfile,

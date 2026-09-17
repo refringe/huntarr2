@@ -11,8 +11,7 @@ import (
 	"github.com/refringe/huntarr2/internal/database"
 )
 
-// New creates a temporary SQLite database in a test-scoped directory, runs all migrations, and returns the open
-// *sql.DB. The database file is removed when the test completes.
+// New returns a migrated SQLite database in a test-scoped temporary directory, removed when the test completes.
 func New(t *testing.T) *sql.DB {
 	t.Helper()
 

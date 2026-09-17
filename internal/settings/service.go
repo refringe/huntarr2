@@ -20,8 +20,7 @@ func NewService(repo Repository) *Service {
 	return &Service{repo: repo}
 }
 
-// Resolve merges compiled defaults, global overrides, and per-instance overrides into a single Resolved struct;
-// precedence is per-instance > global > defaults.
+// Resolve merges defaults, global overrides, and per-instance overrides, with later layers taking precedence.
 func (s *Service) Resolve(ctx context.Context, instanceID uuid.UUID) (Resolved, error) {
 	resolved := Defaults()
 
@@ -68,8 +67,7 @@ func (s *Service) Set(ctx context.Context, instanceID *uuid.UUID, key, value str
 	})
 }
 
-// SetBatch validates every entry before atomically persisting them all; a nil instanceID sets global values,
-// non-nil per-instance overrides.
+// SetBatch validates every entry then persists them atomically; a nil instanceID targets global values.
 func (s *Service) SetBatch(ctx context.Context, instanceID *uuid.UUID, entries []SettingEntry) error {
 	for _, e := range entries {
 		if !ValidKey(e.Key) {

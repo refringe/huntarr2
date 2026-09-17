@@ -1,5 +1,4 @@
-// Package settings manages application settings stored as key/value pairs in SQLite. Settings may be global
-// (instance_id IS NULL) or per-instance overrides.
+// Package settings manages global and per-instance key/value settings stored in SQLite.
 package settings
 
 import (
@@ -33,8 +32,7 @@ var validKeys = map[string]struct{}{
 	KeySearchMissing:     {},
 }
 
-// MaxCooldownPeriod is the longest cooldown period a setting may specify. Search cooldown records older than
-// this can no longer match any configured cooldown period and are safe to prune.
+// MaxCooldownPeriod is the longest cooldown period a setting may specify.
 const MaxCooldownPeriod = 90 * 24 * time.Hour
 
 // MaxSearchInterval is the longest base search interval a setting may specify.
@@ -52,8 +50,7 @@ type SettingEntry struct {
 	Value string
 }
 
-// Setting represents a single stored key/value pair. A nil InstanceID denotes a global setting; non-nil denotes a
-// per-instance override.
+// Setting is a stored key/value pair; a nil InstanceID denotes a global setting.
 type Setting struct {
 	ID         uuid.UUID
 	InstanceID *uuid.UUID
@@ -94,8 +91,7 @@ func ValidKey(key string) bool {
 	return ok
 }
 
-// ParseHHMM converts a "HH:MM" string to minutes since midnight, requiring exactly two digits for both components
-// (e.g. "09:30" is valid, "9:30" is not).
+// ParseHHMM converts a two-digit "HH:MM" string to minutes since midnight.
 func ParseHHMM(v string) (int, error) {
 	if len(v) != 5 || v[2] != ':' {
 		return 0, fmt.Errorf("expected HH:MM format, got %q", v)

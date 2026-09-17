@@ -27,8 +27,7 @@ type settingsDeleteRequest struct {
 	Keys []string `json:"keys"`
 }
 
-// settingsResponse converts domain settings to a JSON-friendly format; duration fields are rendered as Go duration
-// strings (e.g. "24h", "6h30m") that round-trip through time.ParseDuration.
+// settingsResponse is the JSON form of Resolved, with durations rendered as Go duration strings.
 type settingsResponse struct {
 	BatchSize         int    `json:"batchSize"`
 	CooldownPeriod    string `json:"cooldownPeriod"`
@@ -53,8 +52,7 @@ func toSettingsResponse(r settings.Resolved) settingsResponse {
 	}
 }
 
-// formatDuration renders a time.Duration as a compact string (e.g. "24h", "1h30m", "45s", "500ms"), omitting zero
-// components.
+// formatDuration renders a time.Duration as a compact string (e.g. "24h", "1h30m", "45s", "500ms").
 func formatDuration(d time.Duration) string {
 	if d == 0 {
 		return "0s"

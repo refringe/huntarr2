@@ -14,9 +14,9 @@ function defaultPlaceholder(appType) {
     return 'http://' + d.host + ':' + d.port;
 }
 
-// defaultName returns a suggested instance name for the given app type: the first instance is named after the
-// label (e.g. "Sonarr"), subsequent instances append an incrementing suffix (e.g. "Sonarr 2").
 var _sectionCache = {};
+
+// defaultName suggests an instance name: the app label, with an incrementing suffix for later instances.
 function defaultName(appType) {
     var d = appDefaults[appType];
     if (!d) return '';

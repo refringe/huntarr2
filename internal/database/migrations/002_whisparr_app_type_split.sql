@@ -1,10 +1,6 @@
 -- +goose NO TRANSACTION
 
--- Splits the single "whisparr" app type into "whisparr-v2" (the existing
--- episode-based implementation) and "whisparr-v3" ("Eros", movie-based).
--- SQLite cannot alter a CHECK constraint in place, so the instances table
--- is rebuilt. Foreign key enforcement is disabled for the rebuild; with
--- it on, DROP TABLE would cascade-delete every child row.
+-- Rebuilds the instances table with the "whisparr" app type split into "whisparr-v2" and "whisparr-v3".
 
 -- +goose Up
 

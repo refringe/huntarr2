@@ -25,8 +25,7 @@ func NewSQLitePollTracker(db *sql.DB) *SQLitePollTracker {
 	return &SQLitePollTracker{db: db}
 }
 
-// LastPolled returns the timestamp of the most recent history poll for the given instance, or the zero time when
-// the instance has never been polled.
+// LastPolled returns the most recent history poll time for the instance, or the zero time when never polled.
 func (r *SQLitePollTracker) LastPolled(ctx context.Context, instanceID uuid.UUID) (time.Time, error) {
 	const q = `SELECT last_polled
 	             FROM history_poll_state
