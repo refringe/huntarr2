@@ -1,6 +1,7 @@
-// Package pages provides templ page components and their view models for
-// the Huntarr2 web interface.
+// Package pages provides templ page components and their view models for the Huntarr2 web interface.
 package pages
+
+import "time"
 
 // HomeData holds the data rendered on the Home page.
 type HomeData struct {
@@ -15,14 +16,14 @@ type HomeData struct {
 	RecentUpgrades   int
 	RecentDownloads  int
 	PerInstance      []HomeInstanceStats
+	LatestUpgrades   []HomeUpgrade
 	SchedulerRunning bool
 	SearchesThisHour int
 	HourlyLimit      int
 	ArrInstances     []HomeArrInstance
 }
 
-// HomeInstanceStats holds per-instance search/skip/upgrade/download
-// counts for the dashboard.
+// HomeInstanceStats holds per-instance search/skip/upgrade/download counts for the dashboard.
 type HomeInstanceStats struct {
 	InstanceID    string
 	InstanceName  string
@@ -33,8 +34,25 @@ type HomeInstanceStats struct {
 	DownloadCount int
 }
 
-// HomeArrInstance represents a single *arr instance (Sonarr, Radarr, etc.)
-// status on the Home page.
+// HomeUpgrade is one row of the latest upgrades list on the Home page.
+type HomeUpgrade struct {
+	InstanceName string
+	AppType      string
+	ItemLabel    string
+	ReleaseTitle string
+	DetailURL    string
+	PosterURL    string
+	FromQuality  string
+	ToQuality    string
+	FromSize     int64
+	ToSize       int64
+	FromScore    *int
+	ToScore      *int
+	MediaTags    []string
+	DetectedAt   time.Time
+}
+
+// HomeArrInstance represents a single *arr instance status on the Home page.
 type HomeArrInstance struct {
 	Name      string
 	AppType   string
@@ -48,8 +66,7 @@ type ConnectionsData struct {
 	Instances    []ConnectionInstance
 }
 
-// ConnectionInstance represents a single instance card on the Connections
-// page.
+// ConnectionInstance represents a single instance card on the Connections page.
 type ConnectionInstance struct {
 	ID        string
 	Name      string
@@ -64,8 +81,7 @@ type LogsData struct {
 	Instances    []LogsInstance
 }
 
-// LogsInstance represents an instance available for filtering on the Logs
-// page.
+// LogsInstance represents an instance available for filtering on the Logs page.
 type LogsInstance struct {
 	ID   string
 	Name string

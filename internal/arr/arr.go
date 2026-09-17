@@ -1,9 +1,9 @@
-// Package arr provides client implementations for *arr applications (Sonarr, Radarr, Lidarr, Whisparr v2/v3)
-// behind the shared App interface.
+// Package arr provides clients for *arr applications (Sonarr, Radarr, Lidarr, Whisparr v2/v3) behind the App interface.
 package arr
 
 import (
 	"context"
+	"errors"
 	"time"
 )
 
@@ -19,8 +19,7 @@ type QualityLevel struct {
 	Name string
 }
 
-// ProfileEntry is one row in a quality profile's ordered list: either an individual quality (Quality non-nil) or a
-// named group containing nested entries. Groups carry their own ID, which the profile's Cutoff can reference.
+// ProfileEntry is one row in a quality profile: a single quality (Quality non-nil) or a named group of nested entries.
 type ProfileEntry struct {
 	ID      int
 	Quality *QualityLevel
@@ -29,8 +28,7 @@ type ProfileEntry struct {
 	Allowed bool
 }
 
-// QualityProfile represents a single quality profile configured in an *arr application. Items is the ordered list
-// of qualities and groups; the order determines rank (higher index = higher quality).
+// QualityProfile is a quality profile whose Items are ordered from lowest to highest quality.
 type QualityProfile struct {
 	ID             int
 	Name           string
@@ -39,9 +37,7 @@ type QualityProfile struct {
 	Items          []ProfileEntry
 }
 
-// LibraryItem represents a single media item (episode, movie, album) from an *arr library with enough information
-// to evaluate whether it can be upgraded. For items backed by multiple files (Lidarr albums), CurrentQualityIDs
-// holds one quality ID per file.
+// LibraryItem is a media item (episode, movie, album) with one CurrentQualityIDs entry per backing file.
 type LibraryItem struct {
 	ID                int
 	Label             string
@@ -76,17 +72,51 @@ type SearchResult struct {
 	CommandID int
 }
 
-// HistoryRecord represents a single import event from an *arr instance's history. IsUpgrade is true when the
-// import replaced an existing file with a higher quality version; DetailPath holds the path portion of the item's
-// detail page in the *arr UI (e.g. "/movie/the-dark-knight-2008").
-type HistoryRecord struct {
-	ID         int
-	Date       time.Time
-	ItemLabel  string
-	DetailPath string
-	IsUpgrade  bool
-	Quality    string
+// MediaInfo holds the technical details of an imported file; video fields are empty for Lidarr.
+type MediaInfo struct {
+	Resolution            string
+	VideoCodec            string
+	VideoBitDepth         int
+	VideoBitrate          int64
+	VideoDynamicRangeType string
+	AudioCodec            string
+	AudioChannels         float64
+	AudioBitrate          int64
+	AudioBitrateText      string
+	AudioBits             string
+	AudioSampleRate       string
+	RunTime               string
 }
+
+// HistoryRecord represents a single import event from an *arr instance's history.
+type HistoryRecord struct {
+	ID                        int
+	ItemID                    int
+	Date                      time.Time
+	ItemLabel                 string
+	ReleaseTitle              string
+	DetailPath                string
+	MediaCoverPath            string
+	IsUpgrade                 bool
+	Quality                   string
+	PreviousQuality           string
+	Size                      int64
+	PreviousSize              int64
+	CustomFormatScore         *int
+	PreviousCustomFormatScore *int
+	ReleaseGroup              string
+	FileID                    int
+	MediaInfo                 *MediaInfo
+}
+
+// MediaCover is an image fetched from an *arr instance's mediacover API.
+type MediaCover struct {
+	ContentType string
+	Data        []byte
+}
+
+// ErrNotFound indicates the *arr application has no resource at the requested path.
+var ErrNotFound = errors.New("resource not found")
 
 // App is the interface that all *arr application adapters implement.
 type App interface {
@@ -95,4 +125,5 @@ type App interface {
 	LibraryItems(ctx context.Context) ([]LibraryItem, error)
 	Search(ctx context.Context, itemIDs []int) (SearchResult, error)
 	History(ctx context.Context, since time.Time, pageSize int) ([]HistoryRecord, error)
+	MediaCover(ctx context.Context, path string) (MediaCover, error)
 }

@@ -2,19 +2,28 @@ package arr
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"regexp"
 	"time"
 )
 
 // cmdNameField is the JSON field naming the command in an *arr command request payload.
 const cmdNameField = "name"
 
-// libraryFetchBudget bounds an entire library fetch for a single instance, including the per-series and per-album
-// request loops.
+// libraryFetchBudget bounds an entire library fetch for a single instance, including its per-item request loops.
 const libraryFetchBudget = 15 * time.Minute
 
 // statusProbeTimeout caps system/status probe requests.
 const statusProbeTimeout = 10 * time.Second
+
+const maxMediaCoverBytes = 5 << 20
+
+// mediaCoverPathPattern matches an optional artist/ or album/ prefix, an entity ID, and an image filename.
+var mediaCoverPathPattern = regexp.MustCompile(`^(?:artist/|album/)?\d+/[a-z]+(?:-\d+)?\.(?:jpg|png|gif)$`)
+
+// mediaCoverSizeSuffix matches the resized-variant suffix of an image filename (e.g. "-250" in "poster-250.jpg").
+var mediaCoverSizeSuffix = regexp.MustCompile(`-\d+(\.[a-z]+)$`)
 
 // transportCeilingMargin is added to libraryFetchBudget to form the client-level transport ceiling.
 const transportCeilingMargin = 30 * time.Second
@@ -26,8 +35,7 @@ type fetchLibraryFunc func(ctx context.Context, client *client, apiVersion strin
 type fetchHistoryFunc func(ctx context.Context, client *client,
 	apiVersion string, since time.Time, pageSize int) ([]HistoryRecord, error)
 
-// appConfig holds the per-application parameters that distinguish one *arr adapter from another. versionMajor,
-// when non-zero, is the server major version a connection test requires.
+// appConfig holds the per-application parameters of an *arr adapter; a non-zero versionMajor is required on connect.
 type appConfig struct {
 	name         string
 	apiVersion   string
@@ -44,9 +52,7 @@ type statusResponse struct {
 	Version string `json:"version"`
 }
 
-// profileEntryResponse mirrors the recursive JSON structure of a quality profile entry returned by all *arr
-// qualityprofile endpoints. The top-level ID field is populated for group entries and is referenced by the
-// profile's Cutoff.
+// profileEntryResponse mirrors a quality profile entry; group entries carry the ID a profile's Cutoff can reference.
 type profileEntryResponse struct {
 	ID      int `json:"id"`
 	Quality *struct {
@@ -170,6 +176,28 @@ func (a *adapter) History(ctx context.Context, since time.Time, pageSize int) ([
 	defer cancel()
 
 	return a.cfg.fetchHistory(ctx, a.client, a.cfg.apiVersion, since, pageSize)
+}
+
+// MediaCover fetches an image from the mediacover API, retrying without the size suffix when the variant is missing.
+func (a *adapter) MediaCover(ctx context.Context, path string) (MediaCover, error) {
+	if !mediaCoverPathPattern.MatchString(path) {
+		return MediaCover{}, fmt.Errorf("%s media cover %q: %w", a.cfg.name, path, ErrNotFound)
+	}
+
+	ctx, cancel := a.requestContext(ctx)
+	defer cancel()
+
+	apiPath := fmt.Sprintf("/api/%s/mediacover/%s", a.cfg.apiVersion, path)
+	data, contentType, err := a.client.getBytes(ctx, apiPath, maxMediaCoverBytes)
+	if errors.Is(err, ErrNotFound) && mediaCoverSizeSuffix.MatchString(apiPath) {
+		original := mediaCoverSizeSuffix.ReplaceAllString(apiPath, "$1")
+		data, contentType, err = a.client.getBytes(ctx, original, maxMediaCoverBytes)
+	}
+	if err != nil {
+		return MediaCover{}, fmt.Errorf("%s media cover: %w", a.cfg.name, err)
+	}
+
+	return MediaCover{ContentType: contentType, Data: data}, nil
 }
 
 func (a *adapter) Search(ctx context.Context, itemIDs []int) (SearchResult, error) {

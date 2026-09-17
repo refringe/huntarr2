@@ -26,6 +26,7 @@ type arrService interface {
 	Status(ctx context.Context) ([]arr.InstanceStatus, error)
 	TestConnection(ctx context.Context, appType instance.AppType, baseURL, apiKey string, timeoutMs int) error
 	SearchCycle(ctx context.Context, instanceID uuid.UUID, batchSize int) (int, error)
+	MediaCover(ctx context.Context, instanceID uuid.UUID, path string) (arr.MediaCover, error)
 }
 
 type settingsService interface {
@@ -85,6 +86,7 @@ func NewRouter(
 
 	rt.mux.HandleFunc("GET /arr/status", rt.handleArrStatus)
 	rt.mux.HandleFunc("POST /instances/{id}/search", rt.handleInstanceSearch)
+	rt.mux.HandleFunc("GET /instances/{id}/mediacover/{path...}", rt.handleInstanceMediaCover)
 
 	rt.mux.HandleFunc("GET /settings", rt.handleGetSettings)
 	rt.mux.HandleFunc("PUT /settings", rt.handleUpdateSettings)

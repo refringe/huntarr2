@@ -1,7 +1,9 @@
 package server
 
 import (
+	"slices"
 	"testing"
+	"time"
 	"uuid"
 
 	"github.com/refringe/huntarr2/internal/activity"
@@ -167,6 +169,124 @@ func TestAggregateStats(t *testing.T) {
 		}
 		if totals.skipped != 0 {
 			t.Errorf("skipped = %d, want 0", totals.skipped)
+		}
+	})
+}
+
+func TestHomeUpgrade(t *testing.T) {
+	t.Parallel()
+
+	instID := uuid.New()
+	instMap := map[string]instance.Instance{
+		instID.String(): {ID: instID, Name: "Radarr Main", AppType: instance.AppTypeRadarr, BaseURL: "http://radarr:7878/"},
+	}
+	created := time.Date(2026, 9, 16, 10, 0, 0, 0, time.UTC)
+
+	t.Run("full details", func(t *testing.T) {
+		t.Parallel()
+		entry := activity.Entry{
+			InstanceID: &instID,
+			CreatedAt:  created,
+			Details: map[string]any{
+				"instanceName":              "Radarr",
+				"instanceBaseURL":           "http://radarr.local",
+				"itemLabel":                 "Movie (2024)",
+				"itemDetailPath":            "/movie/movie-2024",
+				"releaseTitle":              "Movie.2024.1080p-GRP",
+				"mediaCover":                "42/poster-250.jpg",
+				"quality":                   "Bluray-1080p",
+				"previousQuality":           "HDTV-720p",
+				"size":                      float64(8_000_000_000),
+				"previousSize":              float64(2_000_000_000),
+				"customFormatScore":         float64(1100),
+				"previousCustomFormatScore": float64(-50),
+				"resolution":                "1920x1080",
+				"videoCodec":                "x265",
+				"videoDynamicRange":         "HDR10",
+				"videoBitDepth":             float64(10),
+				"videoBitrate":              float64(12_000_000),
+				"audioCodec":                "TrueHD",
+				"audioChannels":             7.1,
+			},
+		}
+
+		got := homeUpgrade(entry, instMap)
+
+		if got.InstanceName != "Radarr" || got.AppType != "Radarr" {
+			t.Errorf("instance = %q/%q, want Radarr/Radarr", got.InstanceName, got.AppType)
+		}
+		if got.ItemLabel != "Movie (2024)" || got.ReleaseTitle != "Movie.2024.1080p-GRP" {
+			t.Errorf("labels = %q/%q", got.ItemLabel, got.ReleaseTitle)
+		}
+		if got.DetailURL != "http://radarr.local/movie/movie-2024" {
+			t.Errorf("DetailURL = %q", got.DetailURL)
+		}
+		if want := "/api/instances/" + instID.String() + "/mediacover/42/poster-250.jpg"; got.PosterURL != want {
+			t.Errorf("PosterURL = %q, want %q", got.PosterURL, want)
+		}
+		if got.FromQuality != "HDTV-720p" || got.ToQuality != "Bluray-1080p" {
+			t.Errorf("quality = %q -> %q", got.FromQuality, got.ToQuality)
+		}
+		if got.FromSize != 2_000_000_000 || got.ToSize != 8_000_000_000 {
+			t.Errorf("size = %d -> %d", got.FromSize, got.ToSize)
+		}
+		if got.FromScore == nil || *got.FromScore != -50 || got.ToScore == nil || *got.ToScore != 1100 {
+			t.Errorf("score = %v -> %v", got.FromScore, got.ToScore)
+		}
+		wantTags := []string{"1080p", "x265", "HDR10", "10-bit", "12 Mbps", "TrueHD 7.1"}
+		if !slices.Equal(got.MediaTags, wantTags) {
+			t.Errorf("MediaTags = %v, want %v", got.MediaTags, wantTags)
+		}
+		if !got.DetectedAt.Equal(created) {
+			t.Errorf("DetectedAt = %v, want %v", got.DetectedAt, created)
+		}
+	})
+
+	t.Run("legacy entry falls back to instance list", func(t *testing.T) {
+		t.Parallel()
+		entry := activity.Entry{
+			InstanceID: &instID,
+			CreatedAt:  created,
+			Details: map[string]any{
+				"itemLabel":      "Movie.2024.1080p-GRP",
+				"itemDetailPath": "/movie/movie-2024",
+				"quality":        "Bluray-1080p",
+			},
+		}
+
+		got := homeUpgrade(entry, instMap)
+
+		if got.InstanceName != "Radarr Main" || got.AppType != "Radarr" {
+			t.Errorf("instance = %q/%q, want Radarr Main/Radarr", got.InstanceName, got.AppType)
+		}
+		if got.DetailURL != "http://radarr:7878/movie/movie-2024" {
+			t.Errorf("DetailURL = %q", got.DetailURL)
+		}
+		if got.PosterURL != "" {
+			t.Errorf("PosterURL = %q, want empty", got.PosterURL)
+		}
+		if got.FromQuality != "" || got.FromScore != nil || got.ToScore != nil {
+			t.Errorf("unknown previous values should stay empty: %+v", got)
+		}
+		if len(got.MediaTags) != 0 {
+			t.Errorf("MediaTags = %v, want none", got.MediaTags)
+		}
+	})
+
+	t.Run("deleted instance", func(t *testing.T) {
+		t.Parallel()
+		entry := activity.Entry{
+			CreatedAt: created,
+			Details:   map[string]any{"releaseTitle": "Orphan.Release", "mediaCover": "1/poster-250.jpg"},
+		}
+
+		got := homeUpgrade(entry, instMap)
+
+		if got.ItemLabel != "Orphan.Release" {
+			t.Errorf("ItemLabel = %q, want release title fallback", got.ItemLabel)
+		}
+		if got.PosterURL != "" || got.DetailURL != "" {
+			t.Errorf("links should be empty without an instance: %+v", got)
 		}
 	})
 }

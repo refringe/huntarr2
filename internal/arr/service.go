@@ -15,8 +15,7 @@ import (
 	"github.com/refringe/huntarr2/internal/instance"
 )
 
-// ErrVersionMismatch indicates a connection test reached the server, but the reported major version does not match
-// the selected application type.
+// ErrVersionMismatch indicates the reached server's major version does not match the selected application type.
 var ErrVersionMismatch = errors.New("application version mismatch")
 
 // InstanceStatus holds the connection status and version for a single *arr instance.
@@ -78,8 +77,7 @@ func (s *Service) Status(ctx context.Context) ([]InstanceStatus, error) {
 	return statuses, nil
 }
 
-// TestConnection attempts to reach an *arr instance at the given address, returning nil on success and
-// ErrVersionMismatch when the server's major version does not match one the application type demands.
+// TestConnection reaches an *arr instance, returning ErrVersionMismatch when the server major version is wrong.
 func (s *Service) TestConnection(ctx context.Context, appType instance.AppType, baseURL, apiKey string, timeoutMs int) error {
 	timeout := time.Duration(timeoutMs) * time.Millisecond
 	app, err := s.newApp(appType, baseURL, apiKey, timeout)
@@ -109,8 +107,7 @@ func majorVersion(version string) int {
 	return major
 }
 
-// UpgradeResult holds the items eligible for upgrade, monitored items with no file (missing), and diagnostic
-// statistics from the filtering process.
+// UpgradeResult holds upgradeable items, missing items (monitored, no file), and the filtering statistics.
 type UpgradeResult struct {
 	Items        []UpgradeItem
 	MissingItems []UpgradeItem
@@ -161,8 +158,7 @@ func (s *Service) Search(ctx context.Context, instanceID uuid.UUID, itemIDs []in
 	return app.Search(ctx, itemIDs)
 }
 
-// SearchCycle fetches all upgradeable and missing items and triggers a search for up to batchSize of them,
-// bypassing cooldown filtering and recording. It returns the number of items searched.
+// SearchCycle searches up to batchSize upgradeable and missing items without cooldown filtering, returning the count.
 func (s *Service) SearchCycle(ctx context.Context, instanceID uuid.UUID, batchSize int) (int, error) {
 	app, err := s.appForInstance(ctx, instanceID)
 	if err != nil {
@@ -204,6 +200,15 @@ func (s *Service) History(ctx context.Context, instanceID uuid.UUID, since time.
 		return nil, err
 	}
 	return app.History(ctx, since, pageSize)
+}
+
+// MediaCover fetches an image from the specified instance's mediacover API.
+func (s *Service) MediaCover(ctx context.Context, instanceID uuid.UUID, path string) (MediaCover, error) {
+	app, err := s.appForInstance(ctx, instanceID)
+	if err != nil {
+		return MediaCover{}, err
+	}
+	return app.MediaCover(ctx, path)
 }
 
 func (s *Service) appForInstance(ctx context.Context, id uuid.UUID) (App, error) {
