@@ -7,18 +7,21 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/rs/zerolog/log"
 
+	"github.com/refringe/huntarr2/internal/arr"
 	"github.com/refringe/huntarr2/internal/instance"
 )
+
+const mediaCoverCacheControl = "private, max-age=86400"
 
 // maxSearchBatchSize is the upper bound for a single search request.
 const maxSearchBatchSize = 1000
 
-// searchCycleWriteBudget extends the HTTP write deadline for a manual search cycle: it must cover the quality
-// profile and search command requests plus the library fetch budget, with margin to write the response.
+// searchCycleWriteBudget bounds the HTTP write deadline for a manual search cycle.
 const searchCycleWriteBudget = 30 * time.Minute
 
 type searchRequest struct {
@@ -82,4 +85,35 @@ func (rt *Router) handleInstanceSearch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, searchResponse{Searched: searched})
+}
+
+// handleInstanceMediaCover proxies a poster image from the specified instance's mediacover API.
+func (rt *Router) handleInstanceMediaCover(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathUUID(w, r)
+	if !ok {
+		return
+	}
+
+	cover, err := rt.arr.MediaCover(r.Context(), id, r.PathValue("path"))
+	if err != nil {
+		if errors.Is(err, instance.ErrNotFound) || errors.Is(err, arr.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "media cover not found")
+			return
+		}
+		log.Warn().Err(err).Str("instanceId", id.String()).Msg("failed to fetch media cover")
+		writeError(w, http.StatusBadGateway, "failed to fetch media cover")
+		return
+	}
+
+	contentType := cover.ContentType
+	if contentType == "" {
+		contentType = http.DetectContentType(cover.Data)
+	}
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Cache-Control", mediaCoverCacheControl)
+	w.Header().Set("Content-Length", strconv.Itoa(len(cover.Data)))
+	w.WriteHeader(http.StatusOK)
+	if _, err := w.Write(cover.Data); err != nil {
+		log.Debug().Err(err).Msg("writing media cover response")
+	}
 }

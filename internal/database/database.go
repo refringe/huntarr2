@@ -10,8 +10,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// Open creates a SQLite connection at the given file path, configuring pragmas for WAL mode, foreign key
-// enforcement, and a busy timeout. The returned *sql.DB is safe for concurrent use.
+// Open opens the SQLite database at path with WAL mode, foreign key enforcement, and a busy timeout.
 func Open(path string) (*sql.DB, error) {
 	db, err := sql.Open("sqlite", path)
 	if err != nil {

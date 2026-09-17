@@ -3,6 +3,27 @@
 // Polling interval in milliseconds for auto-refresh.
 var LOG_POLL_INTERVAL_MS = 5000;
 
+// formatBytes renders a byte count with a binary-scaled unit, e.g. "8.4 GB".
+function formatBytes(value) {
+    var n = Number(value);
+    if (!Number.isFinite(n) || n <= 0) return String(value);
+    var units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    var unit = 0;
+    while (n >= 1024 && unit < units.length - 1) {
+        n /= 1024;
+        unit++;
+    }
+    return (unit === 0 ? n : n.toFixed(1)) + ' ' + units[unit];
+}
+
+// formatBitrate renders a bits-per-second value as kbps or Mbps.
+function formatBitrate(value) {
+    var n = Number(value);
+    if (!Number.isFinite(n) || n <= 0) return String(value);
+    if (n >= 1000000) return (n / 1000000).toFixed(1) + ' Mbps';
+    return Math.round(n / 1000) + ' kbps';
+}
+
 function logViewer() {
     return {
         entries: [],
@@ -26,6 +47,10 @@ function logViewer() {
             return Math.max(1, Math.ceil(this.total / this.perPage));
         },
         init() {
+            var initial = new URLSearchParams(window.location.search).get(
+                'action',
+            );
+            if (initial) this.filters.action = initial;
             this.fetchEntries();
             this.startPolling();
             this.$watch('filters', () => {
@@ -159,6 +184,7 @@ function logViewer() {
                 'upgradeableAll',
                 'itemLabel',
                 'itemDetailPath',
+                'mediaCover',
             ]);
             var labels = {
                 candidateTotal: 'Candidates',
@@ -176,14 +202,40 @@ function logViewer() {
                 windowStart: 'Window Start',
                 windowEnd: 'Window End',
                 quality: 'Quality',
+                previousQuality: 'Previous Quality',
+                size: 'Size',
+                previousSize: 'Previous Size',
+                customFormatScore: 'Custom Format Score',
+                previousCustomFormatScore: 'Previous Custom Format Score',
+                releaseTitle: 'Release',
+                releaseGroup: 'Release Group',
+                resolution: 'Resolution',
+                videoCodec: 'Video Codec',
+                videoBitDepth: 'Video Bit Depth',
+                videoBitrate: 'Video Bitrate',
+                videoDynamicRange: 'Dynamic Range',
+                audioCodec: 'Audio Codec',
+                audioChannels: 'Audio Channels',
+                audioBitrate: 'Audio Bitrate',
+                audioBitrateText: 'Audio Bitrate',
+                audioBits: 'Audio Bits',
+                audioSampleRate: 'Audio Sample Rate',
+                runTime: 'Runtime',
                 error: 'Error',
+            };
+            var formatters = {
+                size: formatBytes,
+                previousSize: formatBytes,
+                videoBitrate: formatBitrate,
+                audioBitrate: formatBitrate,
             };
             return Object.entries(entry.details)
                 .filter(function (pair) {
                     return !skip.has(pair[0]);
                 })
                 .map(function (pair) {
-                    return [labels[pair[0]] || pair[0], String(pair[1])];
+                    var format = formatters[pair[0]] || String;
+                    return [labels[pair[0]] || pair[0], format(pair[1])];
                 });
         },
         levelClass(level) {

@@ -1,5 +1,4 @@
-// Package instance defines the domain types and errors for application instance management. An instance represents
-// a configured connection to an *arr application (Sonarr, Radarr, Lidarr, or Whisparr v2/v3).
+// Package instance defines the domain types and errors for configured *arr application connections.
 package instance
 
 import (
@@ -13,8 +12,7 @@ import (
 // AppType identifies the type of *arr application an instance connects to.
 type AppType string
 
-// Application type constants for each supported *arr application. The two Whisparr generations are separate types:
-// v2 is episode-based (a Sonarr fork) and v3 "Eros" is movie-based (a Radarr fork).
+// Application type constants; Whisparr v2 is episode-based (Sonarr fork) and v3 "Eros" movie-based (Radarr fork).
 const (
 	AppTypeSonarr     AppType = "sonarr"
 	AppTypeRadarr     AppType = "radarr"
@@ -23,8 +21,7 @@ const (
 	AppTypeWhisparrV3 AppType = "whisparr-v3"
 )
 
-// allAppTypes lists every recognised application type in display order; validAppTypes and appTypeLabels are keyed
-// on the same set.
+// allAppTypes lists every recognised application type in display order.
 var allAppTypes = []AppType{
 	AppTypeSonarr,
 	AppTypeRadarr,

@@ -7,9 +7,7 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// fetchRadarrLibrary retrieves all movies from a Radarr (or Whisparr v3) instance as LibraryItems. Whisparr v3
-// models scenes as movies: its titleSlug is an identifier such as "tmdb:<id>" (still valid in the /movie/ detail
-// path) and its year may be zero.
+// fetchRadarrLibrary retrieves all movies from a Radarr (or Whisparr v3) instance as LibraryItems.
 func fetchRadarrLibrary(
 	ctx context.Context,
 	c *client,
@@ -60,8 +58,7 @@ func fetchRadarrLibrary(
 	return items, nil
 }
 
-// fetchSonarrLibrary retrieves all episodes from a Sonarr (or Whisparr v2) instance as LibraryItems, fetching all
-// series first and then episodes per monitored series. Per-series failures are logged and skipped.
+// fetchSonarrLibrary retrieves the episodes of every monitored series from a Sonarr (or Whisparr v2) instance.
 func fetchSonarrLibrary(
 	ctx context.Context,
 	c *client,
@@ -105,7 +102,6 @@ func fetchSonarrLibrary(
 		episodePath := fmt.Sprintf("/api/%s/episode?seriesId=%d&includeEpisodeFile=true",
 			apiVersion, series.ID)
 		if err := c.get(ctx, episodePath, &episodes); err != nil {
-			// A cancelled or expired context would fail every remaining series and truncate the library.
 			if ctx.Err() != nil {
 				return nil, fmt.Errorf("fetching episodes for series %q: %w", series.Title, err)
 			}
@@ -143,8 +139,7 @@ func fetchSonarrLibrary(
 	return items, nil
 }
 
-// fetchLidarrLibrary retrieves all albums from a Lidarr instance as LibraryItems, fetching track files for albums
-// with files and storing every track quality ID. Per-album failures are logged and skipped.
+// fetchLidarrLibrary retrieves all albums from a Lidarr instance with one quality ID per track file.
 func fetchLidarrLibrary(
 	ctx context.Context,
 	c *client,
@@ -195,7 +190,6 @@ func fetchLidarrLibrary(
 			trackPath := fmt.Sprintf("/api/%s/trackfile?albumId=%d",
 				apiVersion, album.ID)
 			if err := c.get(ctx, trackPath, &tracks); err != nil {
-				// A cancelled or expired context would fail every remaining album and truncate the library.
 				if ctx.Err() != nil {
 					return nil, fmt.Errorf("fetching track files for album %q: %w", album.Title, err)
 				}

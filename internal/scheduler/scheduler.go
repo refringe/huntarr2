@@ -1,6 +1,4 @@
-// Package scheduler implements the adaptive scheduling engine for quality upgrade searches. It wakes on a fixed
-// tick interval, iterates over enabled *arr instances, checks constraints (search window, rate limit), fetches
-// upgradeable items, filters by cooldown, and triggers searches.
+// Package scheduler runs the adaptive search loop over enabled *arr instances.
 package scheduler
 
 import (
@@ -38,8 +36,7 @@ const (
 	detailInstanceBaseURL = "instanceBaseURL"
 )
 
-// cooldownRetention is the maximum age of search cooldown records. Records older than the longest permitted
-// cooldown period can no longer match in FilterCoolingDown, so they are safe to remove.
+// cooldownRetention is the maximum age of search cooldown records.
 const cooldownRetention = settings.MaxCooldownPeriod
 
 // firstPollLookback is the lookback window used when an instance has never been polled before.
@@ -370,22 +367,69 @@ func (s *Scheduler) pollInstanceHistory(ctx context.Context, inst instance.Insta
 			action = activity.ActionUpgradeDetected
 			label = "quality upgrade"
 		}
-		details := map[string]any{
-			detailInstanceName:    inst.Name,
-			detailInstanceBaseURL: inst.BaseURL,
-			"itemLabel":           r.ItemLabel,
-			"itemDetailPath":      r.DetailPath,
-			"quality":             r.Quality,
-		}
 		s.logActivity(ctx, &inst.ID, activity.LevelInfo, action,
 			fmt.Sprintf("%s detected: %s", label, r.ItemLabel),
-			details)
+			historyDetails(inst, r))
 	}
 
 	if err := s.polls.RecordPoll(ctx, inst.ID, time.Now()); err != nil {
 		log.Warn().Err(err).Str("instance", inst.Name).
 			Msg("recording history poll timestamp")
 	}
+}
+
+// historyDetails builds the activity details for an import history record, omitting empty and unknown values.
+func historyDetails(inst instance.Instance, r arr.HistoryRecord) map[string]any {
+	details := map[string]any{
+		detailInstanceName:    inst.Name,
+		detailInstanceBaseURL: inst.BaseURL,
+		"itemLabel":           r.ItemLabel,
+		"itemDetailPath":      r.DetailPath,
+		"quality":             r.Quality,
+	}
+	putString := func(key, value string) {
+		if value != "" {
+			details[key] = value
+		}
+	}
+	putInt := func(key string, value int64) {
+		if value != 0 {
+			details[key] = value
+		}
+	}
+	putScore := func(key string, value *int) {
+		if value != nil {
+			details[key] = *value
+		}
+	}
+
+	putString("releaseTitle", r.ReleaseTitle)
+	putString("releaseGroup", r.ReleaseGroup)
+	putString("mediaCover", r.MediaCoverPath)
+	putInt("size", r.Size)
+	putScore("customFormatScore", r.CustomFormatScore)
+	if r.IsUpgrade {
+		putString("previousQuality", r.PreviousQuality)
+		putInt("previousSize", r.PreviousSize)
+		putScore("previousCustomFormatScore", r.PreviousCustomFormatScore)
+	}
+	if m := r.MediaInfo; m != nil {
+		putString("resolution", m.Resolution)
+		putString("videoCodec", m.VideoCodec)
+		putInt("videoBitDepth", int64(m.VideoBitDepth))
+		putInt("videoBitrate", m.VideoBitrate)
+		putString("videoDynamicRange", m.VideoDynamicRangeType)
+		putString("audioCodec", m.AudioCodec)
+		if m.AudioChannels != 0 {
+			details["audioChannels"] = m.AudioChannels
+		}
+		putInt("audioBitrate", m.AudioBitrate)
+		putString("audioBitrateText", m.AudioBitrateText)
+		putString("audioBits", m.AudioBits)
+		putString("audioSampleRate", m.AudioSampleRate)
+		putString("runTime", m.RunTime)
+	}
+	return details
 }
 
 // pruneActivityLog deletes old activity log entries and expired cooldown records once per day.
@@ -565,9 +609,7 @@ func (s *Scheduler) logActivity(
 	}
 }
 
-// computeNextInterval adapts the search interval to the backlog, accumulating across ticks via previous: empty
-// results progressively double the interval (capped at 4x base), a backlog above twice the batch size progressively
-// halves it (floored at base/4), and anything else resets it to base.
+// computeNextInterval doubles previous on empty results (max 4x base), halves it on a backlog (min base/4), else base.
 func computeNextInterval(base, previous time.Duration, totalItems, batchSize int) time.Duration {
 	switch {
 	case totalItems == 0:
@@ -589,8 +631,7 @@ func computeNextInterval(base, previous time.Duration, totalItems, batchSize int
 	}
 }
 
-// inSearchWindow reports whether now falls within the configured search window. Both bounds empty means always
-// allowed, start > end spans midnight, and malformed times are logged and treated as allowed.
+// inSearchWindow reports whether now falls within the HH:MM window; empty or malformed bounds mean always allowed.
 func inSearchWindow(start, end string, now time.Time) bool {
 	if start == "" && end == "" {
 		return true

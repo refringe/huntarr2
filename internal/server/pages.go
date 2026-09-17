@@ -3,8 +3,10 @@ package server
 import (
 	"cmp"
 	"context"
+	"fmt"
 	"net/http"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -16,6 +18,8 @@ import (
 	"github.com/refringe/huntarr2/internal/scheduler"
 	"github.com/refringe/huntarr2/web/templates/pages"
 )
+
+const latestUpgradesLimit = 20
 
 // handleHomePage gathers data from all services and renders the dashboard.
 func (s *Server) handleHomePage(w http.ResponseWriter, r *http.Request) {
@@ -49,12 +53,26 @@ func (s *Server) fetchHomeData(ctx context.Context) pages.HomeData {
 	var (
 		allStats    []activity.ActionStats
 		recentStats []activity.ActionStats
+		upgrades    []activity.Entry
 		arrStatuses []arr.InstanceStatus
 		schedStatus scheduler.Status
 	)
 
 	var wg sync.WaitGroup
-	wg.Add(4)
+	wg.Add(5)
+
+	go func() {
+		defer wg.Done()
+		entries, err := s.activity.List(ctx, activity.ListParams{
+			Action: activity.ActionUpgradeDetected,
+			Limit:  latestUpgradesLimit,
+		})
+		if err != nil {
+			log.Error().Err(err).Msg("fetching latest upgrades")
+			return
+		}
+		upgrades = entries
+	}()
 
 	go func() {
 		defer wg.Done()
@@ -113,6 +131,9 @@ func (s *Server) fetchHomeData(ctx context.Context) pages.HomeData {
 		data.RecentUpgrades = recentTotals.upgrades
 		data.RecentDownloads = recentTotals.downloads
 	}
+	for _, e := range upgrades {
+		data.LatestUpgrades = append(data.LatestUpgrades, homeUpgrade(e, instMap))
+	}
 	for _, st := range arrStatuses {
 		data.ArrInstances = append(data.ArrInstances,
 			pages.HomeArrInstance{
@@ -124,6 +145,110 @@ func (s *Server) fetchHomeData(ctx context.Context) pages.HomeData {
 	}
 
 	return data
+}
+
+// homeUpgrade converts an upgrade_detected activity entry into a dashboard row.
+func homeUpgrade(e activity.Entry, instMap map[string]instance.Instance) pages.HomeUpgrade {
+	d := entryDetails(e.Details)
+	row := pages.HomeUpgrade{
+		InstanceName: d.text("instanceName"),
+		ItemLabel:    d.text("itemLabel"),
+		ReleaseTitle: d.text("releaseTitle"),
+		FromQuality:  d.text("previousQuality"),
+		ToQuality:    d.text("quality"),
+		FromSize:     d.integer("previousSize"),
+		ToSize:       d.integer("size"),
+		FromScore:    d.score("previousCustomFormatScore"),
+		ToScore:      d.score("customFormatScore"),
+		MediaTags:    mediaTags(d),
+		DetectedAt:   e.CreatedAt,
+	}
+
+	baseURL := d.text("instanceBaseURL")
+	if e.InstanceID != nil {
+		if inst, ok := instMap[e.InstanceID.String()]; ok {
+			row.AppType = inst.AppType.Label()
+			if row.InstanceName == "" {
+				row.InstanceName = inst.Name
+			}
+			if baseURL == "" {
+				baseURL = inst.BaseURL
+			}
+		}
+		if cover := d.text("mediaCover"); cover != "" {
+			row.PosterURL = fmt.Sprintf("/api/instances/%s/mediacover/%s", e.InstanceID, cover)
+		}
+	}
+	if path := d.text("itemDetailPath"); path != "" && baseURL != "" {
+		row.DetailURL = strings.TrimRight(baseURL, "/") + path
+	}
+	if row.ItemLabel == "" {
+		row.ItemLabel = row.ReleaseTitle
+	}
+	return row
+}
+
+// mediaTags summarises the recorded media info as short display chips, skipping values the poll did not record.
+func mediaTags(d entryDetails) []string {
+	candidates := []string{
+		pages.ResolutionLabel(d.text("resolution")),
+		d.text("videoCodec"),
+		d.text("videoDynamicRange"),
+		bitDepthLabel(d.integer("videoBitDepth")),
+		pages.FormatBitrate(d.integer("videoBitrate")),
+		pages.AudioLabel(d.text("audioCodec"), d.number("audioChannels")),
+		d.text("audioBitrateText"),
+		d.text("audioBits"),
+		d.text("audioSampleRate"),
+	}
+	var tags []string
+	for _, c := range candidates {
+		if c != "" {
+			tags = append(tags, c)
+		}
+	}
+	return tags
+}
+
+// bitDepthLabel renders a video bit depth as e.g. "10-bit", or empty for zero.
+func bitDepthLabel(depth int64) string {
+	if depth <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("%d-bit", depth)
+}
+
+// entryDetails reads typed values from an activity entry's JSON-decoded details map.
+type entryDetails map[string]any
+
+func (d entryDetails) text(key string) string {
+	s, _ := d[key].(string)
+	return s
+}
+
+func (d entryDetails) number(key string) float64 {
+	switch v := d[key].(type) {
+	case float64:
+		return v
+	case int:
+		return float64(v)
+	case int64:
+		return float64(v)
+	default:
+		return 0
+	}
+}
+
+func (d entryDetails) integer(key string) int64 {
+	return int64(d.number(key))
+}
+
+func (d entryDetails) score(key string) *int {
+	if _, ok := d[key]; !ok {
+		return nil
+	}
+	n := int(d.number(key))
+	return &n
 }
 
 // activityTotals holds the aggregate counts returned by aggregateStats.

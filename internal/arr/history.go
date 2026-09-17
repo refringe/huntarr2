@@ -13,20 +13,63 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+const (
+	coverTypePoster = "poster"
+	coverTypeCover  = "cover"
+)
+
+const mediaCoverHeight = 250
+
+var historyIncludeParams = []string{"includeMovie", "includeSeries", "includeEpisode", "includeArtist", "includeAlbum"}
+
+// historyConfig holds an application's history event type IDs, item ID field name, and file endpoint name.
+type historyConfig struct {
+	deleteEventType  int
+	importEventTypes []int
+	itemIDField      string
+	fileEndpoint     string
+}
+
 // historyResponse mirrors the paginated JSON envelope returned by all *arr history endpoints.
 type historyResponse struct {
 	Records []historyRecordResponse `json:"records"`
 }
 
-// historyEntityRef captures the titleSlug from an entity object (movie, series, or artist) embedded in a history
-// record.
-type historyEntityRef struct {
-	TitleSlug string `json:"titleSlug"`
+type historyImageRef struct {
+	CoverType string `json:"coverType"`
 }
 
-// historyRecordResponse mirrors a single history record in the *arr JSON response. The per-app item ID fields
-// (EpisodeID, MovieID, AlbumID) and the Movie, Series, and Artist entities are populated only for the relevant
-// application type; the others remain zero.
+// historyEntityRef mirrors the fields read from a movie, series, artist, or album embedded in a history record.
+type historyEntityRef struct {
+	ID         int               `json:"id"`
+	TitleSlug  string            `json:"titleSlug"`
+	Title      string            `json:"title"`
+	Year       int               `json:"year"`
+	ArtistName string            `json:"artistName"`
+	Images     []historyImageRef `json:"images"`
+}
+
+// hasImage reports whether the entity's images list contains the given cover type.
+func (e *historyEntityRef) hasImage(coverType string) bool {
+	if e == nil {
+		return false
+	}
+	for _, img := range e.Images {
+		if strings.EqualFold(img.CoverType, coverType) {
+			return true
+		}
+	}
+	return false
+}
+
+// historyEpisodeRef captures the fields read from the episode object embedded in a Sonarr history record.
+type historyEpisodeRef struct {
+	SeasonNumber  int    `json:"seasonNumber"`
+	EpisodeNumber int    `json:"episodeNumber"`
+	Title         string `json:"title"`
+}
+
+// historyRecordResponse mirrors a single history record in the *arr JSON response.
 type historyRecordResponse struct {
 	ID        int               `json:"id"`
 	Date      time.Time         `json:"date"`
@@ -43,13 +86,17 @@ type historyRecordResponse struct {
 		} `json:"quality"`
 	} `json:"quality"`
 
+	CustomFormatScore *int `json:"customFormatScore"`
+
 	EpisodeID int `json:"episodeId"`
 	MovieID   int `json:"movieId"`
 	AlbumID   int `json:"albumId"`
 
-	Movie  *historyEntityRef `json:"movie"`
-	Series *historyEntityRef `json:"series"`
-	Artist *historyEntityRef `json:"artist"`
+	Movie   *historyEntityRef  `json:"movie"`
+	Series  *historyEntityRef  `json:"series"`
+	Episode *historyEpisodeRef `json:"episode"`
+	Artist  *historyEntityRef  `json:"artist"`
+	Album   *historyEntityRef  `json:"album"`
 }
 
 // itemID returns the value of the named item ID field ("episodeId", "movieId", or "albumId").
@@ -66,6 +113,25 @@ func (r *historyRecordResponse) itemID(field string) int {
 	}
 }
 
+// dataValue returns the named entry of the record's data map, matching the key case-insensitively.
+func (r *historyRecordResponse) dataValue(key string) string {
+	for k, v := range r.Data {
+		if strings.EqualFold(k, key) {
+			return v
+		}
+	}
+	return ""
+}
+
+// dataInt returns the named data entry parsed as an integer, or 0 when absent or malformed.
+func (r *historyRecordResponse) dataInt(key string) int64 {
+	n, err := strconv.ParseInt(strings.TrimSpace(r.dataValue(key)), 10, 64)
+	if err != nil {
+		return 0
+	}
+	return n
+}
+
 // detailPath returns the *arr UI detail page path from the populated entity, or empty when no slug is available.
 func (r *historyRecordResponse) detailPath() string {
 	switch {
@@ -80,8 +146,55 @@ func (r *historyRecordResponse) detailPath() string {
 	}
 }
 
-// fetchEventPage queries the *arr history endpoint for a single event type, given the integer enum value defined
-// by each *arr application (e.g. 3 for downloadFolderImported in Sonarr).
+// itemLabel returns a human-readable title built from the embedded entities, falling back to the release title.
+func (r *historyRecordResponse) itemLabel() string {
+	switch {
+	case r.Movie != nil && r.Movie.Title != "":
+		if r.Movie.Year != 0 {
+			return fmt.Sprintf("%s (%d)", r.Movie.Title, r.Movie.Year)
+		}
+		return r.Movie.Title
+	case r.Series != nil && r.Series.Title != "":
+		if r.Episode != nil && (r.Episode.SeasonNumber != 0 || r.Episode.EpisodeNumber != 0) {
+			return fmt.Sprintf("%s S%02dE%02d", r.Series.Title, r.Episode.SeasonNumber, r.Episode.EpisodeNumber)
+		}
+		return r.Series.Title
+	case r.Album != nil && r.Album.Title != "":
+		if r.Artist != nil && r.Artist.ArtistName != "" {
+			return r.Artist.ArtistName + " - " + r.Album.Title
+		}
+		return r.Album.Title
+	case r.Artist != nil && r.Artist.ArtistName != "":
+		return r.Artist.ArtistName
+	default:
+		return r.SourceTitle
+	}
+}
+
+// mediaCoverPath returns the poster path below the mediacover API for the populated entity, or empty without one.
+func (r *historyRecordResponse) mediaCoverPath() string {
+	switch {
+	case r.Movie.hasImage(coverTypePoster):
+		return fmt.Sprintf("%d/%s-%d.jpg", r.Movie.ID, coverTypePoster, mediaCoverHeight)
+	case r.Series.hasImage(coverTypePoster):
+		return fmt.Sprintf("%d/%s-%d.jpg", r.Series.ID, coverTypePoster, mediaCoverHeight)
+	case r.Album.hasImage(coverTypeCover):
+		return fmt.Sprintf("album/%d/%s-%d.jpg", r.Album.ID, coverTypeCover, mediaCoverHeight)
+	case r.Artist.hasImage(coverTypePoster):
+		return fmt.Sprintf("artist/%d/%s-%d.jpg", r.Artist.ID, coverTypePoster, mediaCoverHeight)
+	default:
+		return ""
+	}
+}
+
+// deletedFile describes the file removed by an upgrade, read from a file-deleted history record.
+type deletedFile struct {
+	quality string
+	size    int64
+	score   *int
+}
+
+// fetchEventPage queries the history endpoint for one event type, given the application's integer enum value.
 func fetchEventPage(
 	ctx context.Context,
 	c *client,
@@ -95,6 +208,9 @@ func fetchEventPage(
 	params.Set("pageSize", strconv.Itoa(pageSize))
 	params.Set("sortDirection", "descending")
 	params.Set("sortKey", "date")
+	for _, include := range historyIncludeParams {
+		params.Set(include, "true")
+	}
 	path := fmt.Sprintf("/api/%s/history", apiVersion) + "?" + params.Encode()
 
 	var raw historyResponse
@@ -104,32 +220,34 @@ func fetchEventPage(
 	return raw.Records, nil
 }
 
-// fetchArrHistory queries the history endpoint for import events and, separately, for file-deleted events carrying
-// a "reason":"upgrade" flag, marking an import as an upgrade when its item ID also appears in the delete records.
-// A failed delete fetch is non-fatal: every import is then tracked as a new download. deleteEventType and
-// importEventTypes are the integer enum values used by the *arr API; one page is fetched per import type,
-// duplicates are dropped by record ID, and the merged records are sorted newest first. itemIDField selects the
-// per-app ID field to compare (e.g. "episodeId").
+// fetchArrHistory returns import records dated after since, flagged as upgrades by matching file-deleted records.
 func fetchArrHistory(
 	ctx context.Context,
 	c *client,
 	apiVersion string,
 	since time.Time,
 	pageSize int,
-	deleteEventType int,
-	importEventTypes []int,
-	itemIDField string,
+	cfg historyConfig,
 ) ([]HistoryRecord, error) {
-	upgradedItems := make(map[int]bool)
-	deleteRecords, err := fetchEventPage(ctx, c, apiVersion, deleteEventType, pageSize)
+	upgradedItems := make(map[int]deletedFile)
+	deleteRecords, err := fetchEventPage(ctx, c, apiVersion, cfg.deleteEventType, pageSize)
 	if err != nil {
 		log.Warn().Err(err).
-			Int("eventType", deleteEventType).
+			Int("eventType", cfg.deleteEventType).
 			Msg("unable to fetch delete events; upgrade detection disabled for this poll")
 	} else {
 		for _, r := range deleteRecords {
-			if strings.EqualFold(r.Data["reason"], "upgrade") && r.Date.After(since) {
-				upgradedItems[r.itemID(itemIDField)] = true
+			if !strings.EqualFold(r.dataValue("reason"), "upgrade") || !r.Date.After(since) {
+				continue
+			}
+			itemID := r.itemID(cfg.itemIDField)
+			if _, seen := upgradedItems[itemID]; seen {
+				continue
+			}
+			upgradedItems[itemID] = deletedFile{
+				quality: r.Quality.Quality.Name,
+				size:    r.dataInt("size"),
+				score:   r.CustomFormatScore,
 			}
 		}
 		log.Debug().
@@ -141,7 +259,7 @@ func fetchArrHistory(
 	var records []HistoryRecord
 	seen := make(map[int]bool)
 	fetched := 0
-	for _, eventType := range importEventTypes {
+	for _, eventType := range cfg.importEventTypes {
 		importRecords, err := fetchEventPage(ctx, c, apiVersion, eventType, pageSize)
 		if err != nil {
 			return nil, fmt.Errorf("fetching import events (type %d): %w", eventType, err)
@@ -153,14 +271,27 @@ func fetchArrHistory(
 				continue
 			}
 			seen[r.ID] = true
-			records = append(records, HistoryRecord{
-				ID:         r.ID,
-				Date:       r.Date,
-				ItemLabel:  r.SourceTitle,
-				DetailPath: r.detailPath(),
-				IsUpgrade:  upgradedItems[r.itemID(itemIDField)],
-				Quality:    r.Quality.Quality.Name,
-			})
+			rec := HistoryRecord{
+				ID:                r.ID,
+				ItemID:            r.itemID(cfg.itemIDField),
+				Date:              r.Date,
+				ItemLabel:         r.itemLabel(),
+				ReleaseTitle:      r.SourceTitle,
+				DetailPath:        r.detailPath(),
+				MediaCoverPath:    r.mediaCoverPath(),
+				Quality:           r.Quality.Quality.Name,
+				Size:              r.dataInt("size"),
+				CustomFormatScore: r.CustomFormatScore,
+				ReleaseGroup:      r.dataValue("releaseGroup"),
+				FileID:            int(r.dataInt("fileId")),
+			}
+			if deleted, ok := upgradedItems[rec.ItemID]; ok {
+				rec.IsUpgrade = true
+				rec.PreviousQuality = deleted.quality
+				rec.PreviousSize = deleted.size
+				rec.PreviousCustomFormatScore = deleted.score
+			}
+			records = append(records, rec)
 		}
 	}
 
@@ -171,13 +302,97 @@ func fetchArrHistory(
 		}
 		return cmp.Compare(b.ID, a.ID)
 	})
+	records = newestPerItem(records)
+
+	for i := range records {
+		if !records[i].IsUpgrade || records[i].FileID == 0 || ctx.Err() != nil {
+			continue
+		}
+		file, err := fetchFile(ctx, c, apiVersion, cfg.fileEndpoint, records[i].FileID)
+		if err != nil {
+			log.Debug().Err(err).Int("fileId", records[i].FileID).
+				Msg("history: unable to fetch imported file details")
+			continue
+		}
+		records[i].MediaInfo = file.mediaInfo()
+		if records[i].Size == 0 {
+			records[i].Size = file.Size
+		}
+		if records[i].CustomFormatScore == nil {
+			records[i].CustomFormatScore = file.CustomFormatScore
+		}
+		if records[i].ReleaseGroup == "" {
+			records[i].ReleaseGroup = file.ReleaseGroup
+		}
+	}
 
 	log.Debug().
-		Int("importEventTypes", len(importEventTypes)).
+		Int("importEventTypes", len(cfg.importEventTypes)).
 		Int("importRecords", fetched).
 		Int("afterFilter", len(records)).
 		Time("since", since).
 		Msg("history: processed import events")
 
 	return records, nil
+}
+
+// newestPerItem keeps the first record per non-zero item ID from a newest-first list.
+func newestPerItem(records []HistoryRecord) []HistoryRecord {
+	seenItems := make(map[int]bool, len(records))
+	return slices.DeleteFunc(records, func(r HistoryRecord) bool {
+		if r.ItemID == 0 {
+			return false
+		}
+		if seenItems[r.ItemID] {
+			return true
+		}
+		seenItems[r.ItemID] = true
+		return false
+	})
+}
+
+// fileResponse mirrors the fields read from an *arr file resource (moviefile, episodefile, or trackfile).
+type fileResponse struct {
+	Size              int64              `json:"size"`
+	ReleaseGroup      string             `json:"releaseGroup"`
+	CustomFormatScore *int               `json:"customFormatScore"`
+	MediaInfo         *mediaInfoResponse `json:"mediaInfo"`
+}
+
+// mediaInfoResponse mirrors the mediaInfo object of an *arr file resource.
+type mediaInfoResponse struct {
+	Resolution            string  `json:"resolution"`
+	VideoCodec            string  `json:"videoCodec"`
+	VideoBitDepth         int     `json:"videoBitDepth"`
+	VideoBitrate          int64   `json:"videoBitrate"`
+	VideoDynamicRangeType string  `json:"videoDynamicRangeType"`
+	AudioCodec            string  `json:"audioCodec"`
+	AudioChannels         float64 `json:"audioChannels"`
+	AudioBitrate          int64   `json:"audioBitrate"`
+	AudioBitrateText      string  `json:"audioBitRate"`
+	AudioBits             string  `json:"audioBits"`
+	AudioSampleRate       string  `json:"audioSampleRate"`
+	RunTime               string  `json:"runTime"`
+}
+
+// mediaInfo converts the file's media info into the domain type, or nil when the file carries none.
+func (f *fileResponse) mediaInfo() *MediaInfo {
+	if f.MediaInfo == nil {
+		return nil
+	}
+	m := MediaInfo(*f.MediaInfo)
+	if m == (MediaInfo{}) {
+		return nil
+	}
+	return &m
+}
+
+// fetchFile loads a single file resource (e.g. "/api/v3/moviefile/12") from an *arr instance.
+func fetchFile(ctx context.Context, c *client, apiVersion, endpoint string, fileID int) (fileResponse, error) {
+	var raw fileResponse
+	path := fmt.Sprintf("/api/%s/%s/%d", apiVersion, endpoint, fileID)
+	if err := c.get(ctx, path, &raw); err != nil {
+		return fileResponse{}, err
+	}
+	return raw, nil
 }

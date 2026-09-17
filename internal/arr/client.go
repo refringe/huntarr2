@@ -21,8 +21,7 @@ type client struct {
 	httpClient *http.Client
 }
 
-// newClient returns a client for the given *arr instance: baseURL is trimmed of any trailing slash, redirects are
-// never followed, and ceiling bounds every request at the transport level.
+// newClient returns a client that never follows redirects and bounds every request at the transport level by ceiling.
 func newClient(baseURL, apiKey string, ceiling time.Duration) *client {
 	return &client{
 		baseURL: strings.TrimRight(baseURL, "/"),
@@ -94,6 +93,36 @@ func (c *client) post(ctx context.Context, path string, body, dst any) error {
 	}
 
 	return nil
+}
+
+// getBytes executes a GET request and returns up to maxBytes of the body with its content type; 404 yields ErrNotFound.
+func (c *client) getBytes(ctx context.Context, path string, maxBytes int64) ([]byte, string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+path, nil)
+	if err != nil {
+		return nil, "", fmt.Errorf("building request for %s: %w", path, err)
+	}
+
+	req.Header.Set("X-Api-Key", c.apiKey)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, "", fmt.Errorf("requesting %s: %w", path, err)
+	}
+	defer resp.Body.Close() //nolint:errcheck // best-effort close
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, "", fmt.Errorf("requesting %s: %w", path, ErrNotFound)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, "", responseError(resp, path)
+	}
+
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxBytes))
+	if err != nil {
+		return nil, "", fmt.Errorf("reading response from %s: %w", path, err)
+	}
+
+	return data, resp.Header.Get("Content-Type"), nil
 }
 
 // responseError returns an error describing the status code and a truncated snippet of the response body.

@@ -18,7 +18,7 @@ if [ "$PUID" != "$CURRENT_UID" ]; then
     usermod -o -u "$PUID" huntarr2
 fi
 
-# When ENCRYPTION_KEY is unset, read a previously generated key from /config, or generate one and persist it there.
+# Reads the encryption key from /config when ENCRYPTION_KEY is unset, generating and persisting one if absent.
 
 KEY_FILE="/config/encryption.key"
 

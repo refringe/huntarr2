@@ -89,8 +89,7 @@ func scanSettings(rows *sql.Rows) ([]Setting, error) {
 	return out, nil
 }
 
-// Upsert creates or updates a setting: global settings (nil InstanceID) conflict on the partial unique index over
-// setting_key, per-instance settings on the composite unique index.
+// Upsert creates or updates a setting via the global or per-instance unique index.
 func (r *SQLiteRepository) Upsert(ctx context.Context, s *Setting) error {
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	id := uuid.New().String()

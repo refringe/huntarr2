@@ -356,8 +356,6 @@ func TestAdapterHistory(t *testing.T) {
 		{"radarr", instance.AppTypeRadarr, "v3"},
 		{"lidarr", instance.AppTypeLidarr, "v1"},
 		{"whisparr-v2", instance.AppTypeWhisparrV2, "v3"},
-		// The fake server returns the same record for every eventType; whisparr-v3's two import pages rely on
-		// the dedup by record ID.
 		{"whisparr-v3", instance.AppTypeWhisparrV3, "v3"},
 	}
 
@@ -513,4 +511,62 @@ func TestAdapterQualityProfilesDeadlineExceeded(t *testing.T) {
 			t.Errorf("error = %v, want context.DeadlineExceeded", err)
 		}
 	})
+}
+
+func TestAdapterMediaCover(t *testing.T) {
+	t.Parallel()
+
+	var requested []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requested = append(requested, r.URL.Path)
+		if r.Header.Get("X-Api-Key") != "key" {
+			t.Errorf("X-Api-Key = %q, want key", r.Header.Get("X-Api-Key"))
+		}
+		switch r.URL.Path {
+		case "/api/v3/mediacover/42/poster-250.jpg":
+			w.Header().Set("Content-Type", "image/jpeg")
+			w.Write([]byte("small")) //nolint:errcheck // test helper
+		case "/api/v3/mediacover/7/poster.jpg":
+			w.Header().Set("Content-Type", "image/jpeg")
+			w.Write([]byte("original")) //nolint:errcheck // test helper
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	app, err := NewApp(instance.AppTypeRadarr, srv.URL, "key", 5*time.Second)
+	if err != nil {
+		t.Fatalf("NewApp: %v", err)
+	}
+
+	cover, err := app.MediaCover(context.Background(), "42/poster-250.jpg")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cover.ContentType != "image/jpeg" || string(cover.Data) != "small" {
+		t.Errorf("cover = %q/%q, want image/jpeg/small", cover.ContentType, cover.Data)
+	}
+
+	cover, err = app.MediaCover(context.Background(), "7/poster-250.jpg")
+	if err != nil {
+		t.Fatalf("unexpected error on fallback: %v", err)
+	}
+	if string(cover.Data) != "original" {
+		t.Errorf("fallback cover = %q, want original", cover.Data)
+	}
+
+	if _, err := app.MediaCover(context.Background(), "99/poster-250.jpg"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("missing cover error = %v, want ErrNotFound", err)
+	}
+
+	before := len(requested)
+	for _, bad := range []string{"../system/status", "42/poster-250.exe", "album/x/cover.jpg", "42/../7/poster.jpg"} {
+		if _, err := app.MediaCover(context.Background(), bad); !errors.Is(err, ErrNotFound) {
+			t.Errorf("MediaCover(%q) error = %v, want ErrNotFound", bad, err)
+		}
+	}
+	if len(requested) != before {
+		t.Errorf("rejected paths reached the server: %v", requested[before:])
+	}
 }

@@ -1,5 +1,4 @@
-// Package static embeds the web application's static assets (JavaScript,
-// CSS) into the binary for single-binary distribution.
+// Package static embeds the web application's static assets into the binary.
 package static
 
 import "embed"

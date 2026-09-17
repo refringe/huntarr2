@@ -45,8 +45,7 @@ func withSecurityHeaders(next http.Handler) http.Handler {
 	})
 }
 
-// withStaticCacheHeaders serves versioned filenames (e.g. alpine-3.16.1.min.js) with an immutable one-year cache
-// and unversioned application files with no-cache.
+// withStaticCacheHeaders serves versioned filenames with an immutable one-year cache and other files with no-cache.
 func withStaticCacheHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		base := r.URL.Path

@@ -1,6 +1,4 @@
 // settingsManager manages the Settings page form: global and per-instance tabs, save, and reset-to-defaults.
-// Saving instance settings persists only values that differ from the resolved global settings as per-instance
-// overrides; values matching global are removed.
 
 // Duration in milliseconds before a status message is automatically cleared.
 var MESSAGE_DISPLAY_MS = 5000;
@@ -190,8 +188,7 @@ function settingsManager() {
             var url = '/api/settings?instanceId=' + this.activeTab;
             var gs = this.globalSettings || {};
 
-            // Form values differing from the resolved global value become per-instance overrides; values matching
-            // global are deleted.
+            // Values differing from the resolved global value become overrides; matching values are deleted.
             var entries = [
                 {
                     key: 'batch_size',

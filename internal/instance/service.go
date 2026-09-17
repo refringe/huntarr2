@@ -8,8 +8,7 @@ import (
 	"uuid"
 )
 
-// defaultTimeoutMs is the timeout applied to new instances when the caller does not provide one; it matches the
-// schema column default and the value the web UI seeds new connection forms with.
+// defaultTimeoutMs is the timeout applied to new instances when the caller provides none.
 const defaultTimeoutMs = 30000
 
 // maxTimeoutMs is the upper bound for instance timeouts (5 minutes).

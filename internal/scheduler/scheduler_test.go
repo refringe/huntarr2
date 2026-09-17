@@ -818,9 +818,20 @@ func TestPollUpgradeHistoryDetectsUpgrades(t *testing.T) {
 		},
 	}
 
+	score, previousScore := 1100, 450
 	arrSearch := newFakeArrSearcher()
 	arrSearch.historyRecords[instID] = []arr.HistoryRecord{
-		{ID: 1, ItemLabel: "Movie.Upgraded", DetailPath: "/movie/movie-upgraded", IsUpgrade: true, Quality: "Bluray-1080p"},
+		{
+			ID: 1, ItemLabel: "Movie.Upgraded", DetailPath: "/movie/movie-upgraded", IsUpgrade: true,
+			ReleaseTitle: "Movie.Upgraded.1080p-GRP", ReleaseGroup: "GRP", MediaCoverPath: "42/poster-250.jpg",
+			Quality: "Bluray-1080p", PreviousQuality: "HDTV-720p",
+			Size: 8_000_000_000, PreviousSize: 2_000_000_000,
+			CustomFormatScore: &score, PreviousCustomFormatScore: &previousScore,
+			MediaInfo: &arr.MediaInfo{
+				Resolution: "1920x1080", VideoCodec: "x265", VideoBitDepth: 10, VideoDynamicRangeType: "HDR10",
+				AudioCodec: "TrueHD", AudioChannels: 7.1, AudioBitrate: 4_500_000,
+			},
+		},
 	}
 
 	actLog := &fakeActivityLogger{}
@@ -844,6 +855,34 @@ func TestPollUpgradeHistoryDetectsUpgrades(t *testing.T) {
 			}
 			if e.Details["itemDetailPath"] != "/movie/movie-upgraded" {
 				t.Errorf("itemDetailPath = %v, want /movie/movie-upgraded", e.Details["itemDetailPath"])
+			}
+			want := map[string]any{
+				"releaseTitle":              "Movie.Upgraded.1080p-GRP",
+				"releaseGroup":              "GRP",
+				"mediaCover":                "42/poster-250.jpg",
+				"quality":                   "Bluray-1080p",
+				"previousQuality":           "HDTV-720p",
+				"size":                      int64(8_000_000_000),
+				"previousSize":              int64(2_000_000_000),
+				"customFormatScore":         1100,
+				"previousCustomFormatScore": 450,
+				"resolution":                "1920x1080",
+				"videoCodec":                "x265",
+				"videoBitDepth":             int64(10),
+				"videoDynamicRange":         "HDR10",
+				"audioCodec":                "TrueHD",
+				"audioChannels":             7.1,
+				"audioBitrate":              int64(4_500_000),
+			}
+			for key, value := range want {
+				if e.Details[key] != value {
+					t.Errorf("details[%q] = %v (%T), want %v (%T)", key, e.Details[key], e.Details[key], value, value)
+				}
+			}
+			for _, absent := range []string{"videoBitrate", "audioBits", "runTime"} {
+				if _, ok := e.Details[absent]; ok {
+					t.Errorf("details[%q] present, want omitted for zero value", absent)
+				}
 			}
 			break
 		}
@@ -887,6 +926,9 @@ func TestPollUpgradeHistoryDetectsDownloads(t *testing.T) {
 			}
 			if e.Details["itemDetailPath"] != "/series/the-show" {
 				t.Errorf("itemDetailPath = %v, want /series/the-show", e.Details["itemDetailPath"])
+			}
+			if _, ok := e.Details["previousQuality"]; ok {
+				t.Error("details[previousQuality] present, want omitted for a new download")
 			}
 			break
 		}

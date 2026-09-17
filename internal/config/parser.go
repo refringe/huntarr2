@@ -41,8 +41,7 @@ func (p *parser) logLevel(key string, fallback zerolog.Level) zerolog.Level {
 	return lvl
 }
 
-// encryptionKey reads a 32-byte key from the environment as either a 64-character hex string or a base64-encoded
-// string, recording an error when the variable is unset or does not decode to exactly 32 bytes.
+// encryptionKey reads a 32-byte key given as 64 hex characters or base64, recording an error for anything else.
 func (p *parser) encryptionKey(key string) []byte {
 	raw := os.Getenv(key)
 	if raw == "" {

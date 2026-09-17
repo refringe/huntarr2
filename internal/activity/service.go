@@ -30,8 +30,7 @@ func (s *Service) Log(ctx context.Context, entry *Entry) error {
 	return s.repo.Create(ctx, entry)
 }
 
-// List returns activity log entries matching the given parameters. The limit is capped at maxListLimit, defaults
-// to 50 when unset, and the returned slice is always non-nil.
+// List returns activity log entries matching params, with the limit defaulted to 50 and capped at maxListLimit.
 func (s *Service) List(ctx context.Context, params ListParams) ([]Entry, error) {
 	if params.Limit <= 0 {
 		params.Limit = 50

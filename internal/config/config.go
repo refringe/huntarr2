@@ -32,8 +32,7 @@ type Config struct {
 	SchedulerTickSecs int
 	// EncryptionKey is the required 32-byte AES-256-GCM key for encrypting API keys at rest.
 	EncryptionKey []byte
-	// AuthUsername is the HTTP Basic Authentication username; both AuthUsername and AuthPassword must be set to
-	// enable authentication.
+	// AuthUsername and AuthPassword enable HTTP Basic Authentication when both are set.
 	AuthUsername string
 	// AuthPassword is the HTTP Basic Authentication password.
 	AuthPassword string

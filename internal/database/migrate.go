@@ -11,8 +11,7 @@ import (
 	"github.com/refringe/huntarr2/internal/database/migrations"
 )
 
-// migrateMu serialises calls to Migrate; goose's package-level state (SetBaseFS, SetDialect, SetLogger) is not
-// safe for concurrent use.
+// migrateMu serialises calls to Migrate around goose's package-level state.
 var migrateMu sync.Mutex
 
 // Migrate runs all pending database migrations using goose against an already open and configured *sql.DB.
