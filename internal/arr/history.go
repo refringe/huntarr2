@@ -123,9 +123,18 @@ func (r *historyRecordResponse) dataValue(key string) string {
 	return ""
 }
 
-// dataInt returns the named data entry parsed as an integer, or 0 when absent or malformed.
-func (r *historyRecordResponse) dataInt(key string) int64 {
+// dataInt64 returns the named data entry parsed as a 64-bit integer, or 0 when absent or malformed.
+func (r *historyRecordResponse) dataInt64(key string) int64 {
 	n, err := strconv.ParseInt(strings.TrimSpace(r.dataValue(key)), 10, 64)
+	if err != nil {
+		return 0
+	}
+	return n
+}
+
+// dataInt returns the named data entry parsed as an int, or 0 when absent, malformed, or out of range.
+func (r *historyRecordResponse) dataInt(key string) int {
+	n, err := strconv.Atoi(strings.TrimSpace(r.dataValue(key)))
 	if err != nil {
 		return 0
 	}
@@ -246,7 +255,7 @@ func fetchArrHistory(
 			}
 			upgradedItems[itemID] = deletedFile{
 				quality: r.Quality.Quality.Name,
-				size:    r.dataInt("size"),
+				size:    r.dataInt64("size"),
 				score:   r.CustomFormatScore,
 			}
 		}
@@ -280,10 +289,10 @@ func fetchArrHistory(
 				DetailPath:        r.detailPath(),
 				MediaCoverPath:    r.mediaCoverPath(),
 				Quality:           r.Quality.Quality.Name,
-				Size:              r.dataInt("size"),
+				Size:              r.dataInt64("size"),
 				CustomFormatScore: r.CustomFormatScore,
 				ReleaseGroup:      r.dataValue("releaseGroup"),
-				FileID:            int(r.dataInt("fileId")),
+				FileID:            r.dataInt("fileId"),
 			}
 			if deleted, ok := upgradedItems[rec.ItemID]; ok {
 				rec.IsUpgrade = true
