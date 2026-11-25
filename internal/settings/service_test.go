@@ -251,9 +251,6 @@ func TestSetValidValues(t *testing.T) {
 		{KeyEnabled, "false"},
 		{KeySearchMissing, "true"},
 		{KeySearchMissing, "false"},
-		{KeySearchWindowStart, "01:00"},
-		{KeySearchWindowEnd, "06:30"},
-		{KeySearchWindowStart, ""},
 	}
 
 	svc := NewService(newFakeRepository())
@@ -262,6 +259,67 @@ func TestSetValidValues(t *testing.T) {
 			err := svc.SetBatch(context.Background(), nil, []SettingEntry{{Key: tt.key, Value: tt.value}})
 			if err != nil {
 				t.Errorf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+func TestSetBatchSearchWindowPair(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		entries []SettingEntry
+		wantErr bool
+	}{
+		{"both set", []SettingEntry{{KeySearchWindowStart, "01:00"}, {KeySearchWindowEnd, "06:30"}}, false},
+		{"both cleared", []SettingEntry{{KeySearchWindowStart, ""}, {KeySearchWindowEnd, ""}}, false},
+		{"neither present", []SettingEntry{{KeyBatchSize, "5"}}, false},
+		{"start only", []SettingEntry{{KeySearchWindowStart, "01:00"}}, true},
+		{"end only", []SettingEntry{{KeySearchWindowEnd, "06:30"}}, true},
+		{"start set, end cleared", []SettingEntry{{KeySearchWindowStart, "01:00"}, {KeySearchWindowEnd, ""}}, true},
+		{"start cleared, end set", []SettingEntry{{KeySearchWindowStart, ""}, {KeySearchWindowEnd, "06:30"}}, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			repo := newFakeRepository()
+			err := NewService(repo).SetBatch(context.Background(), nil, tt.entries)
+			if tt.wantErr {
+				if !errors.Is(err, ErrInvalidValue) {
+					t.Errorf("err = %v, want ErrInvalidValue", err)
+				}
+				if len(repo.global) != 0 {
+					t.Errorf("stored %d settings, want none", len(repo.global))
+				}
+				return
+			}
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+func TestRemoveBatchSearchWindowPair(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		keys    []string
+		wantErr bool
+	}{
+		{"both", []string{KeySearchWindowStart, KeySearchWindowEnd}, false},
+		{"neither", []string{KeyBatchSize}, false},
+		{"start only", []string{KeySearchWindowStart}, true},
+		{"end only", []string{KeySearchWindowEnd, KeyBatchSize}, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			err := NewService(newFakeRepository()).RemoveBatch(context.Background(), nil, tt.keys)
+			if got := errors.Is(err, ErrInvalidValue); got != tt.wantErr {
+				t.Errorf("err = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}

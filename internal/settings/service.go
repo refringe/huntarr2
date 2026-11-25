@@ -3,6 +3,7 @@ package settings
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"time"
 	"uuid"
@@ -52,7 +53,7 @@ func (s *Service) ResolveGlobal(ctx context.Context) (Resolved, error) {
 	return resolved, nil
 }
 
-// SetBatch validates every entry then persists them atomically; a nil instanceID targets global values.
+// SetBatch validates every entry and the search window pair, then persists them atomically; nil targets global.
 func (s *Service) SetBatch(ctx context.Context, instanceID *uuid.UUID, entries []SettingEntry) error {
 	for _, e := range entries {
 		if !ValidKey(e.Key) {
@@ -61,6 +62,9 @@ func (s *Service) SetBatch(ctx context.Context, instanceID *uuid.UUID, entries [
 		if err := validateValue(e.Key, e.Value); err != nil {
 			return err
 		}
+	}
+	if err := validateWindowEntries(entries); err != nil {
+		return err
 	}
 
 	settings := make([]Setting, len(entries))
@@ -74,14 +78,41 @@ func (s *Service) SetBatch(ctx context.Context, instanceID *uuid.UUID, entries [
 	return s.repo.UpsertBatch(ctx, settings)
 }
 
-// RemoveBatch validates every key before atomically deleting the matching setting overrides.
+// RemoveBatch validates every key and the search window pair before atomically deleting the matching overrides.
 func (s *Service) RemoveBatch(ctx context.Context, instanceID *uuid.UUID, keys []string) error {
 	for _, key := range keys {
 		if !ValidKey(key) {
 			return fmt.Errorf("key %q: %w", key, ErrUnknownKey)
 		}
 	}
+	if slices.Contains(keys, KeySearchWindowStart) != slices.Contains(keys, KeySearchWindowEnd) {
+		return errWindowPair
+	}
 	return s.repo.DeleteBatch(ctx, instanceID, keys)
+}
+
+// errWindowPair reports a write that would leave one search window bound without the other.
+var errWindowPair = fmt.Errorf("%s and %s must be set or cleared together: %w",
+	KeySearchWindowStart, KeySearchWindowEnd, ErrInvalidValue)
+
+// validateWindowEntries requires both search window bounds in one batch, either both empty or both set.
+func validateWindowEntries(entries []SettingEntry) error {
+	var start, end *string
+	for _, e := range entries {
+		switch e.Key {
+		case KeySearchWindowStart:
+			start = &e.Value
+		case KeySearchWindowEnd:
+			end = &e.Value
+		}
+	}
+	if start == nil && end == nil {
+		return nil
+	}
+	if start == nil || end == nil || (*start == "") != (*end == "") {
+		return errWindowPair
+	}
+	return nil
 }
 
 // applyOverrides applies stored settings to the resolved struct, logging and skipping values that fail to parse.

@@ -227,10 +227,19 @@ function settingsManager() {
                 },
             ];
 
+            // The search window bounds become overrides or are deleted as a pair.
+            var windowDiffers =
+                this.form.searchWindowStart !== (gs.searchWindowStart || '') ||
+                this.form.searchWindowEnd !== (gs.searchWindowEnd || '');
+
             var overrides = [];
             var removals = [];
             for (var i = 0; i < entries.length; i++) {
-                if (entries[i].value !== entries[i].global) {
+                var differs =
+                    entries[i].key.indexOf('search_window_') === 0
+                        ? windowDiffers
+                        : entries[i].value !== entries[i].global;
+                if (differs) {
                     overrides.push({
                         key: entries[i].key,
                         value: entries[i].value,

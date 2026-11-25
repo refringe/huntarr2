@@ -238,3 +238,19 @@ func TestHandleDeleteSettingsUnknownKey(t *testing.T) {
 		t.Errorf("status = %d, want %d", w.Code, http.StatusBadRequest)
 	}
 }
+
+func TestHandleDeleteSettingsHalfWindow(t *testing.T) {
+	t.Parallel()
+	svc := &fakeSettingsService{removeErr: settings.ErrInvalidValue}
+	handler := NewRouter(nil, nil, svc, nil, nil).Handler()
+
+	body := `{"keys":["search_window_start"]}`
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/settings",
+		bytes.NewBufferString(body))
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusBadRequest)
+	}
+}

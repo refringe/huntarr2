@@ -167,7 +167,7 @@ func (rt *Router) handleDeleteSettings(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := rt.settings.RemoveBatch(ctx, instanceID, req.Keys); err != nil {
-		if errors.Is(err, settings.ErrUnknownKey) {
+		if errors.Is(err, settings.ErrUnknownKey) || errors.Is(err, settings.ErrInvalidValue) {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
