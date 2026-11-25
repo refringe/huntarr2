@@ -80,6 +80,8 @@ If you are exposing Huntarr2 to the internet, put it behind a reverse proxy with
 
 ### Reverse proxy examples
 
+Huntarr2 rejects browser requests that change data when they come from another origin. A proxy served over plain HTTP must pass the original `Host` header through, as the nginx example below does.
+
 **nginx:**
 
 ```nginx

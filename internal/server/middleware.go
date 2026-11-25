@@ -26,8 +26,21 @@ var versionedFile = regexp.MustCompile(`\d+\.\d+`)
 
 func withMiddleware(h http.Handler, username, password string) http.Handler {
 	return withSecurityHeaders(
-		withRequestLogging(withPanicRecovery(withMaxBodySize(withBasicAuth(h, username, password)))),
+		withRequestLogging(withPanicRecovery(
+			withCrossOriginProtection(withMaxBodySize(withBasicAuth(h, username, password))),
+		)),
 	)
+}
+
+// withCrossOriginProtection rejects state-changing requests that a browser sends from another origin.
+func withCrossOriginProtection(next http.Handler) http.Handler {
+	protection := http.NewCrossOriginProtection()
+	protection.SetDenyHandler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		w.Write([]byte(`{"error":"cross-origin request rejected"}`)) //nolint:errcheck // best-effort after WriteHeader
+	}))
+	return protection.Handler(next)
 }
 
 func withSecurityHeaders(next http.Handler) http.Handler {

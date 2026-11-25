@@ -345,3 +345,47 @@ func TestBasicAuthReturnsJSON(t *testing.T) {
 		t.Errorf("body = %q, want %q", got, want)
 	}
 }
+
+func TestCrossOriginProtection(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		method  string
+		headers map[string]string
+		want    int
+	}{
+		{"cross-site POST", http.MethodPost, map[string]string{"Sec-Fetch-Site": "cross-site"}, http.StatusForbidden},
+		{"same-origin POST", http.MethodPost, map[string]string{"Sec-Fetch-Site": "same-origin"}, http.StatusOK},
+		{"POST from another origin", http.MethodPost, map[string]string{"Origin": "https://evil.test"}, http.StatusForbidden},
+		{"POST from own origin", http.MethodPost, map[string]string{"Origin": "http://example.com"}, http.StatusOK},
+		{"cross-site DELETE", http.MethodDelete, map[string]string{"Sec-Fetch-Site": "cross-site"}, http.StatusForbidden},
+		{"cross-site GET", http.MethodGet, map[string]string{"Sec-Fetch-Site": "cross-site"}, http.StatusOK},
+		{"POST without browser headers", http.MethodPost, nil, http.StatusOK},
+	}
+
+	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	h := withMiddleware(inner, "", "")
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			req := httptest.NewRequestWithContext(t.Context(), tt.method, "/api/instances", nil)
+			for key, value := range tt.headers {
+				req.Header.Set(key, value)
+			}
+			rr := httptest.NewRecorder()
+			h.ServeHTTP(rr, req)
+
+			if rr.Code != tt.want {
+				t.Errorf("status = %d, want %d", rr.Code, tt.want)
+			}
+			if tt.want == http.StatusForbidden && rr.Header().Get("Content-Type") != "application/json" {
+				t.Errorf("Content-Type = %q, want application/json", rr.Header().Get("Content-Type"))
+			}
+		})
+	}
+}
