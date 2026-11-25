@@ -3,6 +3,7 @@ package scheduler
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -42,6 +43,12 @@ const cooldownRetention = settings.MaxCooldownPeriod
 // firstPollLookback is the lookback window used when an instance has never been polled before.
 const firstPollLookback = 24 * time.Hour
 
+// ErrCycleRunning is returned when a search is requested for an instance whose search cycle is still running.
+var ErrCycleRunning = errors.New("search cycle already running")
+
+// ErrSearchLimitReached is returned when a search is requested after the hourly search limit is used up.
+var ErrSearchLimitReached = errors.New("hourly search limit reached")
+
 // settingsResolver loads and merges settings for a specific instance or globally.
 type settingsResolver interface {
 	Resolve(ctx context.Context, instanceID uuid.UUID) (settings.Resolved, error)
@@ -79,9 +86,10 @@ type pollTracker interface {
 	RecordPoll(ctx context.Context, instanceID uuid.UUID, polledAt time.Time) error
 }
 
-// instanceLister lists configured *arr instances.
+// instanceLister lists and fetches configured *arr instances.
 type instanceLister interface {
 	List(ctx context.Context) ([]instance.Instance, error)
+	Get(ctx context.Context, id uuid.UUID) (instance.Instance, error)
 }
 
 // InstanceSchedule holds scheduling state for a single instance, exposed by the Status endpoint.
@@ -287,10 +295,9 @@ func (s *Scheduler) startCycleIfDue(ctx context.Context, inst instance.Instance,
 
 	s.mu.Lock()
 	sched, exists := s.schedules[inst.ID]
-	_, running := s.inFlight[inst.ID]
 	s.mu.Unlock()
 
-	if running || (exists && now.Before(sched.NextSearchAt)) {
+	if exists && now.Before(sched.NextSearchAt) {
 		return
 	}
 
@@ -311,14 +318,18 @@ func (s *Scheduler) startCycleIfDue(ctx context.Context, inst instance.Instance,
 		return
 	}
 
-	maxSearch, logLimit := s.reserveSearches(inst.ID, hourlyLimit, resolved.BatchSize)
-	if logLimit {
-		s.logActivity(ctx, nil, activity.LevelInfo, activity.ActionRateLimit,
-			fmt.Sprintf("hourly search limit reached (%d)", hourlyLimit), nil)
-	}
-	if maxSearch == 0 {
+	maxSearch, err := s.reserveSearches(inst.ID, hourlyLimit, resolved.BatchSize)
+	if err != nil {
+		if errors.Is(err, ErrSearchLimitReached) && s.claimLimitLog(hourlyLimit) {
+			s.logActivity(ctx, nil, activity.LevelInfo, activity.ActionRateLimit,
+				fmt.Sprintf("hourly search limit reached (%d)", hourlyLimit), nil)
+		}
 		return
 	}
+
+	s.mu.Lock()
+	delete(s.windowSkipLogged, inst.ID)
+	s.mu.Unlock()
 
 	prevInterval := resolved.SearchInterval
 	if exists && sched.Interval > 0 {
@@ -326,7 +337,7 @@ func (s *Scheduler) startCycleIfDue(ctx context.Context, inst instance.Instance,
 	}
 
 	s.cycles.Go(func() {
-		searched, totalItems := s.runInstanceCycle(ctx, inst, resolved, maxSearch)
+		searched, totalItems, _ := s.runInstanceCycle(ctx, inst, resolved, maxSearch)
 		nextInterval := computeNextInterval(
 			resolved.SearchInterval, prevInterval, totalItems, resolved.BatchSize,
 		)
@@ -335,30 +346,76 @@ func (s *Scheduler) startCycleIfDue(ctx context.Context, inst instance.Instance,
 		s.schedules[inst.ID] = newInstanceSchedule(
 			inst.ID, inst.Name, time.Now().Add(nextInterval), true, nextInterval,
 		)
-		s.searchCount += int64(searched)
-		s.reserved -= int64(maxSearch)
-		delete(s.inFlight, inst.ID)
 		s.mu.Unlock()
+		s.releaseSearches(inst.ID, maxSearch, searched)
 	})
 }
 
-// reserveSearches marks the instance as running and reserves up to batchSize of the hour's unused search allowance.
-func (s *Scheduler) reserveSearches(id uuid.UUID, hourlyLimit, batchSize int) (maxSearch int, logLimit bool) {
+// SearchNow runs one search cycle for an instance on request, capped at batchSize items and the hourly limit.
+func (s *Scheduler) SearchNow(ctx context.Context, instanceID uuid.UUID, batchSize int) (int, error) {
+	inst, err := s.instances.Get(ctx, instanceID)
+	if err != nil {
+		return 0, fmt.Errorf("fetching instance %s: %w", instanceID, err)
+	}
+
+	globalSettings, err := s.settings.ResolveGlobal(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("loading global settings: %w", err)
+	}
+	resolved, err := s.settings.Resolve(ctx, instanceID)
+	if err != nil {
+		return 0, fmt.Errorf("resolving instance settings: %w", err)
+	}
+
+	maxSearch, err := s.reserveSearches(instanceID, globalSettings.SearchLimit, batchSize)
+	if err != nil {
+		return 0, err
+	}
+
+	searched, _, err := s.runInstanceCycle(ctx, inst, resolved, maxSearch)
+	s.releaseSearches(instanceID, maxSearch, searched)
+	return searched, err
+}
+
+// reserveSearches marks an idle instance as running and reserves up to batchSize of the hour's unused search allowance.
+func (s *Scheduler) reserveSearches(id uuid.UUID, hourlyLimit, batchSize int) (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	delete(s.windowSkipLogged, id)
+	if _, running := s.inFlight[id]; running {
+		return 0, ErrCycleRunning
+	}
 
-	maxSearch = int(min(int64(batchSize), int64(hourlyLimit)-s.searchCount-s.reserved))
+	maxSearch := int(min(int64(batchSize), int64(hourlyLimit)-s.searchCount-s.reserved))
 	if maxSearch <= 0 {
-		logLimit = s.searchCount >= int64(hourlyLimit) && !s.limitLogged
-		s.limitLogged = s.limitLogged || logLimit
-		return 0, logLimit
+		return 0, ErrSearchLimitReached
 	}
 
 	s.reserved += int64(maxSearch)
 	s.inFlight[id] = struct{}{}
-	return maxSearch, false
+	return maxSearch, nil
+}
+
+// releaseSearches marks the instance as idle, counts its searched items, and returns its reservation.
+func (s *Scheduler) releaseSearches(id uuid.UUID, reserved, searched int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.searchCount += int64(searched)
+	s.reserved -= int64(reserved)
+	delete(s.inFlight, id)
+}
+
+// claimLimitLog reports whether the reached hourly limit still needs its activity entry for this hour, claiming it.
+func (s *Scheduler) claimLimitLog(hourlyLimit int) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.limitLogged || s.searchCount < int64(hourlyLimit) {
+		return false
+	}
+	s.limitLogged = true
+	return true
 }
 
 // pollUpgradeHistory polls each instance's history for upgrades and downloads, at most once per historyPollInterval.
@@ -518,15 +575,15 @@ func (s *Scheduler) pruneActivityLog(ctx context.Context, now time.Time) {
 	}
 }
 
-// runInstanceCycle searches at most maxSearch items for an instance, returning the searched and total candidate counts.
+// runInstanceCycle searches at most maxSearch items for an instance, returning the searched and candidate counts.
 func (s *Scheduler) runInstanceCycle(
 	ctx context.Context,
 	inst instance.Instance,
 	resolved settings.Resolved,
 	maxSearch int,
-) (searched int, totalItems int) {
+) (searched int, totalItems int, err error) {
 	if err := ctx.Err(); err != nil {
-		return 0, 0
+		return 0, 0, err
 	}
 
 	result, err := s.arr.Upgradeable(ctx, inst.ID)
@@ -538,7 +595,7 @@ func (s *Scheduler) runInstanceCycle(
 				detailInstanceName: inst.Name,
 				"error":            err.Error(),
 			})
-		return 0, 0
+		return 0, 0, fmt.Errorf("fetching upgradeable items: %w", err)
 	}
 
 	items := result.Items
@@ -560,7 +617,7 @@ func (s *Scheduler) runInstanceCycle(
 				"atOrAbove":        stats.AtOrAbove,
 				"searchMissing":    resolved.SearchMissing,
 			})
-		return 0, 0
+		return 0, 0, nil
 	}
 
 	itemIDs := make([]int, totalItems)
@@ -572,7 +629,7 @@ func (s *Scheduler) runInstanceCycle(
 	if err != nil {
 		log.Error().Err(err).Str("instance", inst.Name).
 			Msg("filtering cooldown items")
-		return 0, totalItems
+		return 0, totalItems, fmt.Errorf("filtering cooldown items: %w", err)
 	}
 
 	searchIDs := excludeIDs(itemIDs, coolingDown)
@@ -584,7 +641,7 @@ func (s *Scheduler) runInstanceCycle(
 				"coolingDown":      len(coolingDown),
 				"upgradeableAll":   totalItems,
 			})
-		return 0, totalItems
+		return 0, totalItems, nil
 	}
 
 	if len(searchIDs) > maxSearch {
@@ -614,7 +671,7 @@ func (s *Scheduler) runInstanceCycle(
 				"error":               err.Error(),
 				"searchedItems":       searchedItems,
 			})
-		return 0, totalItems
+		return 0, totalItems, fmt.Errorf("searching items: %w", err)
 	}
 
 	if err := s.cooldowns.RecordSearches(ctx, inst.ID, searchIDs); err != nil {
@@ -638,7 +695,7 @@ func (s *Scheduler) runInstanceCycle(
 			"searchedItems":       searchedItems,
 		})
 
-	return len(searchIDs), totalItems
+	return len(searchIDs), totalItems, nil
 }
 
 // logActivity writes an entry to the activity service, reporting persistence failures via zerolog.

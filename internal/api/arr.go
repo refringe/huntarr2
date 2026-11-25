@@ -14,6 +14,7 @@ import (
 
 	"github.com/refringe/huntarr2/internal/arr"
 	"github.com/refringe/huntarr2/internal/instance"
+	"github.com/refringe/huntarr2/internal/scheduler"
 )
 
 const mediaCoverCacheControl = "private, max-age=86400"
@@ -39,7 +40,7 @@ func (rt *Router) handleArrStatus(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, statuses)
 }
 
-// handleInstanceSearch triggers a search cycle on the specified instance.
+// handleInstanceSearch runs a search cycle on the specified instance, within its cooldowns and the hourly limit.
 func (rt *Router) handleInstanceSearch(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathUUID(w, r)
 	if !ok {
@@ -73,14 +74,19 @@ func (rt *Router) handleInstanceSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	searched, err := rt.arr.SearchCycle(r.Context(), id, req.BatchSize)
+	searched, err := rt.scheduler.SearchNow(r.Context(), id, req.BatchSize)
 	if err != nil {
-		if errors.Is(err, instance.ErrNotFound) {
+		switch {
+		case errors.Is(err, instance.ErrNotFound):
 			writeError(w, http.StatusNotFound, "instance not found")
-			return
+		case errors.Is(err, scheduler.ErrCycleRunning):
+			writeError(w, http.StatusConflict, "a search cycle is already running for this instance")
+		case errors.Is(err, scheduler.ErrSearchLimitReached):
+			writeError(w, http.StatusTooManyRequests, "hourly search limit reached")
+		default:
+			log.Error().Err(err).Msg("failed to run search cycle")
+			writeError(w, http.StatusInternalServerError, "failed to run search cycle")
 		}
-		log.Error().Err(err).Msg("failed to run search cycle")
-		writeError(w, http.StatusInternalServerError, "failed to run search cycle")
 		return
 	}
 

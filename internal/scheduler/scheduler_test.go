@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"errors"
+	"slices"
 	"sync"
 	"testing"
 	"testing/synctest"
@@ -190,6 +191,15 @@ type fakeInstanceLister struct {
 
 func (f *fakeInstanceLister) List(_ context.Context) ([]instance.Instance, error) {
 	return f.instances, nil
+}
+
+func (f *fakeInstanceLister) Get(_ context.Context, id uuid.UUID) (instance.Instance, error) {
+	for _, inst := range f.instances {
+		if inst.ID == id {
+			return inst, nil
+		}
+	}
+	return instance.Instance{}, instance.ErrNotFound
 }
 
 // fakePollTracker records poll calls and returns preconfigured timestamps.
@@ -571,6 +581,137 @@ func TestRunWaitsForRunningCycles(t *testing.T) {
 	}
 	if len(sched.Status().Instances) != 1 {
 		t.Errorf("schedules = %d, want the finished cycle's schedule recorded", len(sched.Status().Instances))
+	}
+}
+
+func TestSearchNowHonoursCooldownsAndRecordsThem(t *testing.T) {
+	instID := uuid.New()
+	instances := &fakeInstanceLister{
+		instances: []instance.Instance{{ID: instID, Name: "Sonarr", AppType: instance.AppTypeSonarr}},
+	}
+
+	arrSearch := newFakeArrSearcher()
+	arrSearch.upgradeableItems[instID] = []arr.UpgradeItem{{ID: 1}, {ID: 2}, {ID: 3}}
+
+	cooldowns := newFakeCooldownTracker()
+	cooldowns.coolingDown[instID] = map[int]struct{}{1: {}}
+
+	actLog := &fakeActivityLogger{}
+	sched := newTestScheduler(t,
+		instances, newFakeSettingsResolver(), cooldowns, actLog, arrSearch, newFakePollTracker(),
+	)
+
+	searched, err := sched.SearchNow(t.Context(), instID, 50)
+	if err != nil {
+		t.Fatalf("SearchNow: %v", err)
+	}
+
+	if searched != 2 {
+		t.Errorf("searched = %d, want 2 (one item is cooling down)", searched)
+	}
+	if got := cooldowns.recorded[instID]; !slices.Equal(got, []int{2, 3}) {
+		t.Errorf("recorded cooldowns = %v, want [2 3]", got)
+	}
+	if got := sched.Status().SearchesThisHour; got != 2 {
+		t.Errorf("SearchesThisHour = %d, want 2", got)
+	}
+	if got := countActions(actLog, activity.ActionSearchCycle); got != 1 {
+		t.Errorf("search_cycle entries = %d, want 1", got)
+	}
+}
+
+func TestSearchNowStopsAtHourlyLimit(t *testing.T) {
+	instID := uuid.New()
+	instances := &fakeInstanceLister{
+		instances: []instance.Instance{{ID: instID, Name: "Sonarr", AppType: instance.AppTypeSonarr}},
+	}
+
+	settingsRes := newFakeSettingsResolver()
+	settingsRes.global.SearchLimit = 2
+
+	arrSearch := newFakeArrSearcher()
+	arrSearch.upgradeableItems[instID] = []arr.UpgradeItem{{ID: 1}, {ID: 2}, {ID: 3}}
+
+	sched := newTestScheduler(t,
+		instances, settingsRes, newFakeCooldownTracker(), &fakeActivityLogger{}, arrSearch, newFakePollTracker(),
+	)
+
+	searched, err := sched.SearchNow(t.Context(), instID, 50)
+	if err != nil {
+		t.Fatalf("first SearchNow: %v", err)
+	}
+	if searched != 2 {
+		t.Errorf("searched = %d, want 2 (the hourly limit)", searched)
+	}
+
+	if _, err := sched.SearchNow(t.Context(), instID, 50); !errors.Is(err, ErrSearchLimitReached) {
+		t.Errorf("second SearchNow err = %v, want ErrSearchLimitReached", err)
+	}
+}
+
+func TestSearchNowRejectsRunningInstance(t *testing.T) {
+	instID := uuid.New()
+	instances := &fakeInstanceLister{
+		instances: []instance.Instance{{ID: instID, Name: "Sonarr", AppType: instance.AppTypeSonarr}},
+	}
+
+	arrSearch := newFakeArrSearcher()
+	arrSearch.upgradeableItems[instID] = []arr.UpgradeItem{{ID: 1}}
+	arrSearch.instanceDelays[instID] = time.Minute
+
+	sched := newTestScheduler(t,
+		instances, newFakeSettingsResolver(), newFakeCooldownTracker(), &fakeActivityLogger{},
+		arrSearch, newFakePollTracker(),
+	)
+
+	synctest.Test(t, func(t *testing.T) {
+		first := make(chan error, 1)
+		go func() {
+			_, err := sched.SearchNow(t.Context(), instID, 50)
+			first <- err
+		}()
+		synctest.Wait()
+
+		if _, err := sched.SearchNow(t.Context(), instID, 50); !errors.Is(err, ErrCycleRunning) {
+			t.Errorf("overlapping SearchNow err = %v, want ErrCycleRunning", err)
+		}
+		if err := <-first; err != nil {
+			t.Errorf("first SearchNow: %v", err)
+		}
+	})
+}
+
+func TestSearchNowUnknownInstance(t *testing.T) {
+	sched := newTestScheduler(t,
+		&fakeInstanceLister{}, newFakeSettingsResolver(), newFakeCooldownTracker(), &fakeActivityLogger{},
+		newFakeArrSearcher(), newFakePollTracker(),
+	)
+
+	if _, err := sched.SearchNow(t.Context(), uuid.New(), 50); !errors.Is(err, instance.ErrNotFound) {
+		t.Errorf("err = %v, want instance.ErrNotFound", err)
+	}
+}
+
+func TestSearchNowReturnsCycleError(t *testing.T) {
+	instID := uuid.New()
+	instances := &fakeInstanceLister{
+		instances: []instance.Instance{{ID: instID, Name: "Sonarr", AppType: instance.AppTypeSonarr}},
+	}
+
+	arrSearch := newFakeArrSearcher()
+	arrSearch.upgradeableItems[instID] = []arr.UpgradeItem{{ID: 1}}
+	arrSearch.searchErr = errors.New("connection refused")
+
+	sched := newTestScheduler(t,
+		instances, newFakeSettingsResolver(), newFakeCooldownTracker(), &fakeActivityLogger{},
+		arrSearch, newFakePollTracker(),
+	)
+
+	if _, err := sched.SearchNow(t.Context(), instID, 50); err == nil {
+		t.Error("err = nil, want the search failure")
+	}
+	if got := sched.Status().SearchesThisHour; got != 0 {
+		t.Errorf("SearchesThisHour = %d, want 0 after a failed search", got)
 	}
 }
 

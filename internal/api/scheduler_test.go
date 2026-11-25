@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	jsonv1 "encoding/json"
 	"encoding/json/v2"
 	"net/http"
@@ -13,11 +14,19 @@ import (
 )
 
 type fakeSchedulerStatus struct {
-	status scheduler.Status
+	status    scheduler.Status
+	searched  int
+	searchErr error
+	lastBatch int
 }
 
 func (f *fakeSchedulerStatus) Status() scheduler.Status {
 	return f.status
+}
+
+func (f *fakeSchedulerStatus) SearchNow(_ context.Context, _ uuid.UUID, batchSize int) (int, error) {
+	f.lastBatch = batchSize
+	return f.searched, f.searchErr
 }
 
 func TestHandleSchedulerStatus(t *testing.T) {

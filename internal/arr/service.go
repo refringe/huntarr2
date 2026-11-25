@@ -158,41 +158,6 @@ func (s *Service) Search(ctx context.Context, instanceID uuid.UUID, itemIDs []in
 	return app.Search(ctx, itemIDs)
 }
 
-// SearchCycle searches up to batchSize upgradeable and missing items without cooldown filtering, returning the count.
-func (s *Service) SearchCycle(ctx context.Context, instanceID uuid.UUID, batchSize int) (int, error) {
-	app, err := s.appForInstance(ctx, instanceID)
-	if err != nil {
-		return 0, fmt.Errorf("building app client: %w", err)
-	}
-
-	result, err := s.upgradeableWith(ctx, app)
-	if err != nil {
-		return 0, fmt.Errorf("fetching upgradeable items: %w", err)
-	}
-
-	items := make([]UpgradeItem, 0, len(result.Items)+len(result.MissingItems))
-	items = append(items, result.Items...)
-	items = append(items, result.MissingItems...)
-	if len(items) == 0 {
-		return 0, nil
-	}
-
-	if len(items) > batchSize {
-		items = items[:batchSize]
-	}
-
-	ids := make([]int, len(items))
-	for i, item := range items {
-		ids[i] = item.ID
-	}
-
-	if _, err := app.Search(ctx, ids); err != nil {
-		return 0, fmt.Errorf("searching items: %w", err)
-	}
-
-	return len(ids), nil
-}
-
 // History fetches recent import history from the specified instance, returning records dated after since.
 func (s *Service) History(ctx context.Context, instanceID uuid.UUID, since time.Time, pageSize int) ([]HistoryRecord, error) {
 	app, err := s.appForInstance(ctx, instanceID)

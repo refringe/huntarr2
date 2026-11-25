@@ -12,15 +12,13 @@ import (
 
 	"github.com/refringe/huntarr2/internal/arr"
 	"github.com/refringe/huntarr2/internal/instance"
+	"github.com/refringe/huntarr2/internal/scheduler"
 )
 
 type fakeArrService struct {
 	statuses  []arr.InstanceStatus
 	statusErr error
 	testErr   error
-	searched  int
-	searchErr error
-	lastBatch int
 	cover     arr.MediaCover
 	coverErr  error
 	coverPath string
@@ -32,11 +30,6 @@ func (f *fakeArrService) Status(_ context.Context) ([]arr.InstanceStatus, error)
 
 func (f *fakeArrService) TestConnection(_ context.Context, _ instance.AppType, _, _ string, _ int) error {
 	return f.testErr
-}
-
-func (f *fakeArrService) SearchCycle(_ context.Context, _ uuid.UUID, batchSize int) (int, error) {
-	f.lastBatch = batchSize
-	return f.searched, f.searchErr
 }
 
 func (f *fakeArrService) MediaCover(_ context.Context, _ uuid.UUID, path string) (arr.MediaCover, error) {
@@ -78,13 +71,10 @@ func TestHandleArrStatus(t *testing.T) {
 
 func TestHandleInstanceSearch(t *testing.T) {
 	t.Parallel()
-	id := uuid.New()
-	arrSvc := &fakeArrService{searched: 5}
-	svc := newFakeInstanceService()
-	svc.instances[id] = instance.Instance{ID: id, AppType: instance.AppTypeSonarr}
-	handler := NewRouter(svc, arrSvc, nil, nil, nil).Handler()
+	sched := &fakeSchedulerStatus{searched: 5}
+	handler := NewRouter(nil, nil, nil, nil, sched).Handler()
 
-	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/instances/"+id.String()+"/search", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/instances/"+uuid.New().String()+"/search", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -99,61 +89,58 @@ func TestHandleInstanceSearch(t *testing.T) {
 	if body["searched"] != 5 {
 		t.Errorf("searched = %d, want 5", body["searched"])
 	}
-}
-
-func TestHandleInstanceSearchNotFound(t *testing.T) {
-	t.Parallel()
-	arrSvc := &fakeArrService{searchErr: instance.ErrNotFound}
-	handler := NewRouter(newFakeInstanceService(), arrSvc, nil, nil, nil).Handler()
-
-	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/instances/"+uuid.New().String()+"/search", nil)
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
-
-	if w.Code != http.StatusNotFound {
-		t.Errorf("status = %d, want %d", w.Code, http.StatusNotFound)
+	if sched.lastBatch != 50 {
+		t.Errorf("batchSize = %d, want the default of 50", sched.lastBatch)
 	}
 }
 
-func TestHandleInstanceSearchDefaultBatchSize(t *testing.T) {
+func TestHandleInstanceSearchErrors(t *testing.T) {
 	t.Parallel()
-	id := uuid.New()
-	arrSvc := &fakeArrService{searched: 3}
-	svc := newFakeInstanceService()
-	svc.instances[id] = instance.Instance{ID: id, AppType: instance.AppTypeSonarr}
-	handler := NewRouter(svc, arrSvc, nil, nil, nil).Handler()
-
-	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/instances/"+id.String()+"/search", nil)
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	tests := []struct {
+		name string
+		err  error
+		want int
+	}{
+		{"unknown instance", instance.ErrNotFound, http.StatusNotFound},
+		{"cycle running", scheduler.ErrCycleRunning, http.StatusConflict},
+		{"limit reached", scheduler.ErrSearchLimitReached, http.StatusTooManyRequests},
+		{"cycle failure", errors.New("connection refused"), http.StatusInternalServerError},
 	}
-	if arrSvc.lastBatch != 50 {
-		t.Errorf("batchSize = %d, want 50", arrSvc.lastBatch)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			sched := &fakeSchedulerStatus{searchErr: tt.err}
+			handler := NewRouter(nil, nil, nil, nil, sched).Handler()
+
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost,
+				"/instances/"+uuid.New().String()+"/search", nil)
+			w := httptest.NewRecorder()
+			handler.ServeHTTP(w, req)
+
+			if w.Code != tt.want {
+				t.Errorf("status = %d, want %d", w.Code, tt.want)
+			}
+		})
 	}
 }
 
 func TestHandleInstanceSearchCustomBatchSize(t *testing.T) {
 	t.Parallel()
-	id := uuid.New()
-	arrSvc := &fakeArrService{searched: 10}
-	svc := newFakeInstanceService()
-	svc.instances[id] = instance.Instance{ID: id, AppType: instance.AppTypeSonarr}
-	handler := NewRouter(svc, arrSvc, nil, nil, nil).Handler()
+	sched := &fakeSchedulerStatus{searched: 10}
+	handler := NewRouter(nil, nil, nil, nil, sched).Handler()
 
 	body := `{"batchSize":25}`
-	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/instances/"+id.String()+"/search", bytes.NewBufferString(body))
-	req.Header.Set("Content-Length", "16")
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost,
+		"/instances/"+uuid.New().String()+"/search", bytes.NewBufferString(body))
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
 		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
 	}
-	if arrSvc.lastBatch != 25 {
-		t.Errorf("batchSize = %d, want 25", arrSvc.lastBatch)
+	if sched.lastBatch != 25 {
+		t.Errorf("batchSize = %d, want 25", sched.lastBatch)
 	}
 }
 

@@ -25,7 +25,6 @@ type instanceService interface {
 type arrService interface {
 	Status(ctx context.Context) ([]arr.InstanceStatus, error)
 	TestConnection(ctx context.Context, appType instance.AppType, baseURL, apiKey string, timeoutMs int) error
-	SearchCycle(ctx context.Context, instanceID uuid.UUID, batchSize int) (int, error)
 	MediaCover(ctx context.Context, instanceID uuid.UUID, path string) (arr.MediaCover, error)
 }
 
@@ -44,6 +43,7 @@ type activityService interface {
 
 type schedulerService interface {
 	Status() scheduler.Status
+	SearchNow(ctx context.Context, instanceID uuid.UUID, batchSize int) (int, error)
 }
 
 // Router holds API handler dependencies and a pre-built HTTP mux.
