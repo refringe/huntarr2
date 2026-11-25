@@ -393,6 +393,75 @@ func TestRespectsRateLimit(t *testing.T) {
 	}
 }
 
+// countActions returns the number of logged entries with the given action.
+func countActions(actLog *fakeActivityLogger, action activity.Action) int {
+	count := 0
+	for _, e := range actLog.entries {
+		if e.Action == action {
+			count++
+		}
+	}
+	return count
+}
+
+func TestRateLimitLoggedOncePerHour(t *testing.T) {
+	instID := uuid.New()
+	instances := &fakeInstanceLister{
+		instances: []instance.Instance{{ID: instID, Name: "Sonarr", AppType: instance.AppTypeSonarr}},
+	}
+
+	settingsRes := newFakeSettingsResolver()
+	settingsRes.global.SearchLimit = 1
+
+	arrSearch := newFakeArrSearcher()
+	arrSearch.upgradeableItems[instID] = []arr.UpgradeItem{{ID: 1}}
+
+	actLog := &fakeActivityLogger{}
+	sched := newTestScheduler(t,
+		instances, settingsRes, newFakeCooldownTracker(), actLog, arrSearch, newFakePollTracker(),
+	)
+
+	_ = runScheduler(t, sched)
+
+	if got := countActions(actLog, activity.ActionRateLimit); got != 1 {
+		t.Errorf("rate_limit entries = %d, want 1 across several ticks", got)
+	}
+}
+
+func TestWindowSkipLoggedOncePerClosedWindow(t *testing.T) {
+	instID := uuid.New()
+	instances := &fakeInstanceLister{
+		instances: []instance.Instance{{ID: instID, Name: "Sonarr", AppType: instance.AppTypeSonarr}},
+	}
+
+	actLog := &fakeActivityLogger{}
+	arrSearch := newFakeArrSearcher()
+	arrSearch.upgradeableItems[instID] = []arr.UpgradeItem{{ID: 1}}
+
+	synctest.Test(t, func(t *testing.T) {
+		// The window opens one hour after the bubble's start time and stays open for an hour.
+		start := time.Now().Add(time.Hour)
+		settingsRes := newFakeSettingsResolver()
+		settingsRes.global.SearchWindowStart = start.Format("15:04")
+		settingsRes.global.SearchWindowEnd = start.Add(time.Hour).Format("15:04")
+
+		sched := newTestScheduler(t,
+			instances, settingsRes, newFakeCooldownTracker(), actLog, arrSearch, newFakePollTracker(),
+		)
+
+		ctx, cancel := context.WithTimeout(t.Context(), runBudget)
+		defer cancel()
+		_ = sched.Run(ctx)
+	})
+
+	if got := countActions(actLog, activity.ActionSearchSkip); got != 1 {
+		t.Errorf("search_skip entries = %d, want 1 across several ticks", got)
+	}
+	if len(arrSearch.searchCalls) != 0 {
+		t.Errorf("searchCalls = %d, want 0 outside the window", len(arrSearch.searchCalls))
+	}
+}
+
 func TestBatchCappedAtRemainingHourlyAllowance(t *testing.T) {
 	instID := uuid.New()
 	instances := &fakeInstanceLister{

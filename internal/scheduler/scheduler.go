@@ -119,6 +119,10 @@ type Scheduler struct {
 	hourResetAt     time.Time
 	lastPrunedAt    time.Time
 	lastHistoryPoll time.Time
+
+	// limitLogged and windowSkipLogged mark skips already written to the activity log for the current hour or window.
+	limitLogged      bool
+	windowSkipLogged map[uuid.UUID]struct{}
 }
 
 // New creates a Scheduler with the given tick interval and dependencies, rejecting a non-positive tick interval.
@@ -144,6 +148,8 @@ func New(
 		polls:        polls,
 		schedules:    make(map[uuid.UUID]InstanceSchedule),
 		hourResetAt:  nextHourBoundary(time.Now()),
+
+		windowSkipLogged: make(map[uuid.UUID]struct{}),
 	}, nil
 }
 
@@ -206,6 +212,7 @@ func (s *Scheduler) tick(ctx context.Context) {
 	if now.After(s.hourResetAt) {
 		s.searchCount = 0
 		s.hourResetAt = nextHourBoundary(now)
+		s.limitLogged = false
 	}
 	s.mu.Unlock()
 
@@ -237,11 +244,17 @@ func (s *Scheduler) tick(ctx context.Context) {
 
 		s.mu.Lock()
 		allowance := int64(globalSettings.SearchLimit) - s.searchCount
+		logLimit := allowance <= 0 && !s.limitLogged
+		if logLimit {
+			s.limitLogged = true
+		}
 		s.mu.Unlock()
 
 		if allowance <= 0 {
-			s.logActivity(ctx, nil, activity.LevelInfo, activity.ActionRateLimit,
-				fmt.Sprintf("hourly search limit reached (%d)", globalSettings.SearchLimit), nil)
+			if logLimit {
+				s.logActivity(ctx, nil, activity.LevelInfo, activity.ActionRateLimit,
+					fmt.Sprintf("hourly search limit reached (%d)", globalSettings.SearchLimit), nil)
+			}
 			break
 		}
 
@@ -257,6 +270,7 @@ func (s *Scheduler) tick(ctx context.Context) {
 			s.schedules[inst.ID] = newInstanceSchedule(
 				inst.ID, inst.Name, time.Time{}, false, 0,
 			)
+			delete(s.windowSkipLogged, inst.ID)
 			s.mu.Unlock()
 			continue
 		}
@@ -270,14 +284,25 @@ func (s *Scheduler) tick(ctx context.Context) {
 		}
 
 		if !inSearchWindow(resolved.SearchWindowStart, resolved.SearchWindowEnd, time.Now()) {
-			s.logActivity(ctx, &inst.ID, activity.LevelDebug, activity.ActionSearchSkip,
-				"outside search window", map[string]any{
-					detailInstanceName: inst.Name,
-					"windowStart":      resolved.SearchWindowStart,
-					"windowEnd":        resolved.SearchWindowEnd,
-				})
+			s.mu.Lock()
+			_, logged := s.windowSkipLogged[inst.ID]
+			s.windowSkipLogged[inst.ID] = struct{}{}
+			s.mu.Unlock()
+
+			if !logged {
+				s.logActivity(ctx, &inst.ID, activity.LevelDebug, activity.ActionSearchSkip,
+					"outside search window", map[string]any{
+						detailInstanceName: inst.Name,
+						"windowStart":      resolved.SearchWindowStart,
+						"windowEnd":        resolved.SearchWindowEnd,
+					})
+			}
 			continue
 		}
+
+		s.mu.Lock()
+		delete(s.windowSkipLogged, inst.ID)
+		s.mu.Unlock()
 
 		maxSearch := int(min(int64(resolved.BatchSize), allowance))
 		searched, totalItems := s.runInstanceCycle(ctx, inst, resolved, maxSearch)
@@ -307,6 +332,7 @@ func (s *Scheduler) tick(ctx context.Context) {
 			log.Debug().Str("instance", id.String()).
 				Msg("removed schedule for deleted instance")
 			delete(s.schedules, id)
+			delete(s.windowSkipLogged, id)
 		}
 	}
 	s.mu.Unlock()
