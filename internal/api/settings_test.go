@@ -254,3 +254,19 @@ func TestHandleDeleteSettingsHalfWindow(t *testing.T) {
 		t.Errorf("status = %d, want %d", w.Code, http.StatusBadRequest)
 	}
 }
+
+func TestHandleUpdateSettingsUnknownInstance(t *testing.T) {
+	t.Parallel()
+	svc := &fakeSettingsService{setErr: settings.ErrInstanceNotFound}
+	handler := NewRouter(nil, nil, svc, nil, nil).Handler()
+
+	body := `{"settings":[{"key":"batch_size","value":"20"}]}`
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPut,
+		"/settings?instanceId="+uuid.New().String(), bytes.NewBufferString(body))
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusNotFound)
+	}
+}

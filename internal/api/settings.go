@@ -135,6 +135,10 @@ func (rt *Router) handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
+		if errors.Is(err, settings.ErrInstanceNotFound) {
+			writeError(w, http.StatusNotFound, "instance not found")
+			return
+		}
 		log.Error().Err(err).Msg("failed to update settings")
 		writeError(w, http.StatusInternalServerError, "failed to update settings")
 		return

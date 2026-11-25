@@ -116,6 +116,9 @@ func execUpsert(ctx context.Context, tx *sql.Tx, s *Setting) error {
 		     WHERE instance_id IS NOT NULL
 		 DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
 		id, s.InstanceID.String(), s.Key, s.Value, now)
+	if database.IsForeignKeyViolation(err) {
+		return fmt.Errorf("upserting instance setting %q: %w", s.Key, ErrInstanceNotFound)
+	}
 	if err != nil {
 		return fmt.Errorf("upserting instance setting %q: %w", s.Key, err)
 	}

@@ -3,6 +3,7 @@ package settings
 import (
 	"context"
 	"crypto/rand"
+	"errors"
 	"testing"
 	"uuid"
 
@@ -322,4 +323,15 @@ func TestSQLiteRepository(t *testing.T) {
 			t.Fatalf("expected 0 settings, got %d", len(noSettings))
 		}
 	})
+}
+
+func TestSQLiteUpsertBatchUnknownInstance(t *testing.T) {
+	t.Parallel()
+	repo := NewSQLiteRepository(testdb.New(t))
+
+	unknown := uuid.New()
+	err := repo.UpsertBatch(t.Context(), []Setting{{InstanceID: &unknown, Key: KeyBatchSize, Value: "10"}})
+	if !errors.Is(err, ErrInstanceNotFound) {
+		t.Errorf("err = %v, want ErrInstanceNotFound", err)
+	}
 }

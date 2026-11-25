@@ -44,6 +44,9 @@ var ErrUnknownKey = errors.New("unknown setting key")
 // ErrInvalidValue is returned when a setting value cannot be parsed to the expected type for its key.
 var ErrInvalidValue = errors.New("invalid setting value")
 
+// ErrInstanceNotFound is returned when a setting targets an instance that does not exist.
+var ErrInstanceNotFound = errors.New("instance not found")
+
 // SettingEntry is a key/value pair used when creating or updating settings in batch.
 type SettingEntry struct {
 	Key   string
