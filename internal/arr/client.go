@@ -35,30 +35,37 @@ func newClient(baseURL, apiKey string, ceiling time.Duration) *client {
 	}
 }
 
-// get executes a GET request against the given path and decodes the JSON response body into dst.
-func (c *client) get(ctx context.Context, path string, dst any) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+path, nil)
+// do sends a request carrying the instance's API key, with body as a JSON payload when it is non-nil.
+func (c *client) do(ctx context.Context, method, path string, body io.Reader) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, body)
 	if err != nil {
-		return fmt.Errorf("building request for %s: %w", path, err)
+		return nil, fmt.Errorf("building request for %s: %w", path, err)
 	}
 
 	req.Header.Set("X-Api-Key", c.apiKey)
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("requesting %s: %w", path, err)
+		return nil, fmt.Errorf("requesting %s: %w", path, err)
+	}
+	return resp, nil
+}
+
+// get executes a GET request against the given path and decodes the JSON response body into dst.
+func (c *client) get(ctx context.Context, path string, dst any) error {
+	resp, err := c.do(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return err
 	}
 	defer resp.Body.Close() //nolint:errcheck // best-effort close
 
 	if resp.StatusCode != http.StatusOK {
 		return responseError(resp, path)
 	}
-
-	if err := json.UnmarshalRead(resp.Body, dst); err != nil {
-		return fmt.Errorf("decoding response from %s: %w", path, err)
-	}
-
-	return nil
+	return decodeResponse(resp, path, dst)
 }
 
 // post executes a POST request against the given path with a JSON-encoded body, decoding the JSON response into dst.
@@ -68,45 +75,23 @@ func (c *client) post(ctx context.Context, path string, body, dst any) error {
 		return fmt.Errorf("encoding request body for %s: %w", path, err)
 	}
 
-	req, err := http.NewRequestWithContext(
-		ctx, http.MethodPost, c.baseURL+path, bytes.NewReader(encoded),
-	)
+	resp, err := c.do(ctx, http.MethodPost, path, bytes.NewReader(encoded))
 	if err != nil {
-		return fmt.Errorf("building request for %s: %w", path, err)
-	}
-
-	req.Header.Set("X-Api-Key", c.apiKey)
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("requesting %s: %w", path, err)
+		return err
 	}
 	defer resp.Body.Close() //nolint:errcheck // best-effort close
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
 		return responseError(resp, path)
 	}
-
-	if err := json.UnmarshalRead(resp.Body, dst); err != nil {
-		return fmt.Errorf("decoding response from %s: %w", path, err)
-	}
-
-	return nil
+	return decodeResponse(resp, path, dst)
 }
 
 // getBytes executes a GET request and returns up to maxBytes of the body with its content type; 404 yields ErrNotFound.
 func (c *client) getBytes(ctx context.Context, path string, maxBytes int64) ([]byte, string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+path, nil)
+	resp, err := c.do(ctx, http.MethodGet, path, nil)
 	if err != nil {
-		return nil, "", fmt.Errorf("building request for %s: %w", path, err)
-	}
-
-	req.Header.Set("X-Api-Key", c.apiKey)
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, "", fmt.Errorf("requesting %s: %w", path, err)
+		return nil, "", err
 	}
 	defer resp.Body.Close() //nolint:errcheck // best-effort close
 
@@ -123,6 +108,14 @@ func (c *client) getBytes(ctx context.Context, path string, maxBytes int64) ([]b
 	}
 
 	return data, resp.Header.Get("Content-Type"), nil
+}
+
+// decodeResponse decodes the JSON response body into dst.
+func decodeResponse(resp *http.Response, path string, dst any) error {
+	if err := json.UnmarshalRead(resp.Body, dst); err != nil {
+		return fmt.Errorf("decoding response from %s: %w", path, err)
+	}
+	return nil
 }
 
 // responseError returns an error describing the status code and a truncated snippet of the response body.
