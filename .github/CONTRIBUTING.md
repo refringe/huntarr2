@@ -13,7 +13,9 @@ Thanks for your interest in contributing. Huntarr2 is built in the open and welc
 
 - Go 1.27+
 - Docker and Docker Compose
-- [golangci-lint](https://golangci-lint.run/) (for linting)
+- Node.js, for the Prettier checks that run through `npx`
+
+templ and golangci-lint are pinned in `go.mod` and run through `go tool`, so neither needs a separate install. The `make migrate-*` targets are the one exception: they call the [goose](https://github.com/pressly/goose) CLI and read `DATABASE_PATH`. The server applies migrations itself at startup, so most contributors never need them.
 
 ## Finding work
 

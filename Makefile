@@ -62,7 +62,7 @@ docker-down:
 docker-logs:
 	docker compose logs -f huntarr2
 
-# Database
+# Database (needs the goose CLI on PATH and DATABASE_PATH set)
 
 migrate-up:
 	goose -dir internal/database/migrations sqlite3 "$(DATABASE_PATH)" up

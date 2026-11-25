@@ -6,6 +6,9 @@ services:
     volumes:
       - huntarr2_config:/config
     environment:
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATABASE_PATH: ${DATABASE_PATH:-/config/huntarr2.db}
+      SCHEDULER_TICK_SECS: ${SCHEDULER_TICK_SECS:-30}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
       PUID: ${PUID:-1000}
       PGID: ${PGID:-1000}
