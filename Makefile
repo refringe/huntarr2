@@ -8,7 +8,7 @@ LDFLAGS := -s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.dat
 # Build
 
 generate:
-	go tool templ generate
+	go tool templ generate -include-version=false
 
 build: generate
 	CGO_ENABLED=0 go build -ldflags="$(LDFLAGS)" -o bin/huntarr2 ./cmd/huntarr2

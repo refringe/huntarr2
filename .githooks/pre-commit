@@ -47,7 +47,7 @@ fi
 
 if has_staged '\.templ$'; then
     if go tool templ version >/dev/null 2>&1; then
-        go tool templ generate
+        go tool templ generate -include-version=false
 
         # Re-stage any _templ.go files whose source .templ was staged.
         while IFS= read -r -d '' f; do

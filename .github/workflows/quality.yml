@@ -39,7 +39,7 @@ jobs:
 
       - name: Verify generated templ files are up to date
         run: |
-          go tool templ generate
+          make generate
           git diff --exit-code -- '*.go'
 
       - name: Lint

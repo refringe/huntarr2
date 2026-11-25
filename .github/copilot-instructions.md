@@ -13,7 +13,7 @@ Always run commands from the repository root. The `Makefile` has all targets.
 ### Generate templ code (required before build)
 
 ```
-go tool templ generate
+make generate
 ```
 
 This compiles `.templ` files into `_templ.go` files. The `make build` target runs this automatically. If you modify any `.templ` file, always regenerate before building or testing.
@@ -69,7 +69,7 @@ Requires Node.js. Checks formatting of `web/static/js/**/*.js`, `**/*.json`, `**
 Always run these in order before considering a change complete:
 
 ```
-go tool templ generate
+make generate
 make fmt-check
 make test
 make lint
