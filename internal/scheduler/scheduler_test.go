@@ -393,6 +393,41 @@ func TestRespectsRateLimit(t *testing.T) {
 	}
 }
 
+func TestBatchCappedAtRemainingHourlyAllowance(t *testing.T) {
+	instID := uuid.New()
+	instances := &fakeInstanceLister{
+		instances: []instance.Instance{{ID: instID, Name: "Sonarr", AppType: instance.AppTypeSonarr}},
+	}
+
+	settingsRes := newFakeSettingsResolver()
+	settingsRes.global.SearchLimit = 3
+	settingsRes.global.BatchSize = 5
+
+	arrSearch := newFakeArrSearcher()
+	arrSearch.upgradeableItems[instID] = []arr.UpgradeItem{{ID: 1}, {ID: 2}, {ID: 3}, {ID: 4}, {ID: 5}}
+
+	sched := newTestScheduler(t,
+		instances,
+		settingsRes,
+		newFakeCooldownTracker(),
+		&fakeActivityLogger{},
+		arrSearch,
+		newFakePollTracker(),
+	)
+
+	_ = runScheduler(t, sched)
+
+	if len(arrSearch.searchCalls) != 1 {
+		t.Fatalf("searchCalls = %d, want 1", len(arrSearch.searchCalls))
+	}
+	if got := len(arrSearch.searchCalls[0].itemIDs); got != 3 {
+		t.Errorf("searched %d items, want 3 (the hourly limit)", got)
+	}
+	if got := sched.Status().SearchesThisHour; got != 3 {
+		t.Errorf("SearchesThisHour = %d, want 3", got)
+	}
+}
+
 func TestHappyPathEndToEnd(t *testing.T) {
 	instID := uuid.New()
 	instances := &fakeInstanceLister{

@@ -236,10 +236,10 @@ func (s *Scheduler) tick(ctx context.Context) {
 		}
 
 		s.mu.Lock()
-		limitReached := s.searchCount >= int64(globalSettings.SearchLimit)
+		allowance := int64(globalSettings.SearchLimit) - s.searchCount
 		s.mu.Unlock()
 
-		if limitReached {
+		if allowance <= 0 {
 			s.logActivity(ctx, nil, activity.LevelInfo, activity.ActionRateLimit,
 				fmt.Sprintf("hourly search limit reached (%d)", globalSettings.SearchLimit), nil)
 			break
@@ -279,7 +279,8 @@ func (s *Scheduler) tick(ctx context.Context) {
 			continue
 		}
 
-		searched, totalItems := s.runInstanceCycle(ctx, inst, resolved)
+		maxSearch := int(min(int64(resolved.BatchSize), allowance))
+		searched, totalItems := s.runInstanceCycle(ctx, inst, resolved, maxSearch)
 
 		cycleEnd := time.Now()
 
@@ -466,11 +467,12 @@ func (s *Scheduler) pruneActivityLog(ctx context.Context, now time.Time) {
 	}
 }
 
-// runInstanceCycle performs one search cycle for an instance, returning the searched and total candidate counts.
+// runInstanceCycle searches at most maxSearch items for an instance, returning the searched and total candidate counts.
 func (s *Scheduler) runInstanceCycle(
 	ctx context.Context,
 	inst instance.Instance,
 	resolved settings.Resolved,
+	maxSearch int,
 ) (searched int, totalItems int) {
 	if err := ctx.Err(); err != nil {
 		return 0, 0
@@ -534,8 +536,8 @@ func (s *Scheduler) runInstanceCycle(
 		return 0, totalItems
 	}
 
-	if len(searchIDs) > resolved.BatchSize {
-		searchIDs = searchIDs[:resolved.BatchSize]
+	if len(searchIDs) > maxSearch {
+		searchIDs = searchIDs[:maxSearch]
 	}
 
 	itemByID := make(map[int]arr.UpgradeItem, len(items))
