@@ -48,6 +48,6 @@ VOLUME /config
 EXPOSE 9706
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD wget -qO- http://localhost:9706/api/health || exit 1
+    CMD wget -qO- "http://localhost:${PORT:-9706}/api/health" || exit 1
 
 ENTRYPOINT ["/entrypoint.sh"]

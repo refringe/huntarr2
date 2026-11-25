@@ -12,11 +12,6 @@ services:
       TZ: ${TZ:-UTC}
       # AUTH_USERNAME: ${AUTH_USERNAME:-}
       # AUTH_PASSWORD: ${AUTH_PASSWORD:-}
-    healthcheck:
-      test: ['CMD', 'curl', '-fsS', 'http://localhost:9706/api/health']
-      interval: 10s
-      timeout: 5s
-      retries: 3
     logging:
       driver: json-file
       options:
