@@ -1219,17 +1219,17 @@ func TestPollUpgradeHistoryDetectsUpgrades(t *testing.T) {
 				"mediaCover":                "42/poster-250.jpg",
 				"quality":                   "Bluray-1080p",
 				"previousQuality":           "HDTV-720p",
-				"size":                      int64(8_000_000_000),
-				"previousSize":              int64(2_000_000_000),
-				"customFormatScore":         1100,
-				"previousCustomFormatScore": 450,
+				"size":                      float64(8_000_000_000),
+				"previousSize":              float64(2_000_000_000),
+				"customFormatScore":         float64(1100),
+				"previousCustomFormatScore": float64(450),
 				"resolution":                "1920x1080",
 				"videoCodec":                "x265",
-				"videoBitDepth":             int64(10),
+				"videoBitDepth":             float64(10),
 				"videoDynamicRange":         "HDR10",
 				"audioCodec":                "TrueHD",
 				"audioChannels":             7.1,
-				"audioBitrate":              int64(4_500_000),
+				"audioBitrate":              float64(4_500_000),
 			}
 			for key, value := range want {
 				if e.Details[key] != value {

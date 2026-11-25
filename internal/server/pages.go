@@ -149,22 +149,26 @@ func (s *Server) fetchHomeData(ctx context.Context) pages.HomeData {
 
 // homeUpgrade converts an upgrade_detected activity entry into a dashboard row.
 func homeUpgrade(e activity.Entry, instMap map[string]instance.Instance) pages.HomeUpgrade {
-	d := entryDetails(e.Details)
+	d, err := activity.ParseImportDetails(e.Details)
+	if err != nil {
+		log.Warn().Err(err).Str("entry", e.ID.String()).Msg("reading upgrade details")
+	}
+
 	row := pages.HomeUpgrade{
-		InstanceName: d.text("instanceName"),
-		ItemLabel:    d.text("itemLabel"),
-		ReleaseTitle: d.text("releaseTitle"),
-		FromQuality:  d.text("previousQuality"),
-		ToQuality:    d.text("quality"),
-		FromSize:     d.integer("previousSize"),
-		ToSize:       d.integer("size"),
-		FromScore:    d.score("previousCustomFormatScore"),
-		ToScore:      d.score("customFormatScore"),
+		InstanceName: d.InstanceName,
+		ItemLabel:    d.ItemLabel,
+		ReleaseTitle: d.ReleaseTitle,
+		FromQuality:  d.PreviousQuality,
+		ToQuality:    d.Quality,
+		FromSize:     d.PreviousSize,
+		ToSize:       d.Size,
+		FromScore:    d.PreviousCustomFormatScore,
+		ToScore:      d.CustomFormatScore,
 		MediaTags:    mediaTags(d),
 		DetectedAt:   e.CreatedAt,
 	}
 
-	baseURL := d.text("instanceBaseURL")
+	baseURL := d.InstanceBaseURL
 	if e.InstanceID != nil {
 		if inst, ok := instMap[e.InstanceID.String()]; ok {
 			row.AppType = inst.AppType.Label()
@@ -175,12 +179,12 @@ func homeUpgrade(e activity.Entry, instMap map[string]instance.Instance) pages.H
 				baseURL = inst.BaseURL
 			}
 		}
-		if cover := d.text("mediaCover"); cover != "" {
-			row.PosterURL = fmt.Sprintf("/api/instances/%s/mediacover/%s", e.InstanceID, cover)
+		if d.MediaCover != "" {
+			row.PosterURL = fmt.Sprintf("/api/instances/%s/mediacover/%s", e.InstanceID, d.MediaCover)
 		}
 	}
-	if path := d.text("itemDetailPath"); path != "" && baseURL != "" {
-		row.DetailURL = strings.TrimRight(baseURL, "/") + path
+	if d.ItemDetailPath != "" && baseURL != "" {
+		row.DetailURL = strings.TrimRight(baseURL, "/") + d.ItemDetailPath
 	}
 	if row.ItemLabel == "" {
 		row.ItemLabel = row.ReleaseTitle
@@ -189,17 +193,17 @@ func homeUpgrade(e activity.Entry, instMap map[string]instance.Instance) pages.H
 }
 
 // mediaTags summarises the recorded media info as short display chips, skipping values the poll did not record.
-func mediaTags(d entryDetails) []string {
+func mediaTags(d activity.ImportDetails) []string {
 	candidates := []string{
-		pages.ResolutionLabel(d.text("resolution")),
-		d.text("videoCodec"),
-		d.text("videoDynamicRange"),
-		bitDepthLabel(d.integer("videoBitDepth")),
-		pages.FormatBitrate(d.integer("videoBitrate")),
-		pages.AudioLabel(d.text("audioCodec"), d.number("audioChannels")),
-		d.text("audioBitrateText"),
-		d.text("audioBits"),
-		d.text("audioSampleRate"),
+		pages.ResolutionLabel(d.Resolution),
+		d.VideoCodec,
+		d.VideoDynamicRange,
+		bitDepthLabel(d.VideoBitDepth),
+		pages.FormatBitrate(d.VideoBitrate),
+		pages.AudioLabel(d.AudioCodec, d.AudioChannels),
+		d.AudioBitrateText,
+		d.AudioBits,
+		d.AudioSampleRate,
 	}
 	var tags []string
 	for _, c := range candidates {
@@ -211,44 +215,11 @@ func mediaTags(d entryDetails) []string {
 }
 
 // bitDepthLabel renders a video bit depth as e.g. "10-bit", or empty for zero.
-func bitDepthLabel(depth int64) string {
+func bitDepthLabel(depth int) string {
 	if depth <= 0 {
 		return ""
 	}
 	return fmt.Sprintf("%d-bit", depth)
-}
-
-// entryDetails reads typed values from an activity entry's JSON-decoded details map.
-type entryDetails map[string]any
-
-func (d entryDetails) text(key string) string {
-	s, _ := d[key].(string)
-	return s
-}
-
-func (d entryDetails) number(key string) float64 {
-	switch v := d[key].(type) {
-	case float64:
-		return v
-	case int:
-		return float64(v)
-	case int64:
-		return float64(v)
-	default:
-		return 0
-	}
-}
-
-func (d entryDetails) integer(key string) int64 {
-	return int64(d.number(key))
-}
-
-func (d entryDetails) score(key string) *int {
-	if _, ok := d[key]; !ok {
-		return nil
-	}
-	n := int(d.number(key))
-	return &n
 }
 
 // activityTotals holds the aggregate counts returned by aggregateStats.

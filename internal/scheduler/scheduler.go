@@ -476,9 +476,13 @@ func (s *Scheduler) pollInstanceHistory(ctx context.Context, inst instance.Insta
 			action = activity.ActionUpgradeDetected
 			label = "quality upgrade"
 		}
+		details, err := historyDetails(inst, r).Map()
+		if err != nil {
+			log.Warn().Err(err).Str("instance", inst.Name).Msg("building history activity details")
+			continue
+		}
 		s.logActivity(ctx, &inst.ID, activity.LevelInfo, action,
-			fmt.Sprintf("%s detected: %s", label, r.ItemLabel),
-			historyDetails(inst, r))
+			fmt.Sprintf("%s detected: %s", label, r.ItemLabel), details)
 	}
 
 	if err := s.polls.RecordPoll(ctx, inst.ID, newest); err != nil {
@@ -487,56 +491,38 @@ func (s *Scheduler) pollInstanceHistory(ctx context.Context, inst instance.Insta
 	}
 }
 
-// historyDetails builds the activity details for an import history record, omitting empty and unknown values.
-func historyDetails(inst instance.Instance, r arr.HistoryRecord) map[string]any {
-	details := map[string]any{
-		detailInstanceName:    inst.Name,
-		detailInstanceBaseURL: inst.BaseURL,
-		"itemLabel":           r.ItemLabel,
-		"itemDetailPath":      r.DetailPath,
-		"quality":             r.Quality,
+// historyDetails builds the activity details for an import history record.
+func historyDetails(inst instance.Instance, r arr.HistoryRecord) activity.ImportDetails {
+	details := activity.ImportDetails{
+		InstanceName:      inst.Name,
+		InstanceBaseURL:   inst.BaseURL,
+		ItemLabel:         r.ItemLabel,
+		ItemDetailPath:    r.DetailPath,
+		Quality:           r.Quality,
+		ReleaseTitle:      r.ReleaseTitle,
+		ReleaseGroup:      r.ReleaseGroup,
+		MediaCover:        r.MediaCoverPath,
+		Size:              r.Size,
+		CustomFormatScore: r.CustomFormatScore,
 	}
-	putString := func(key, value string) {
-		if value != "" {
-			details[key] = value
-		}
-	}
-	putInt := func(key string, value int64) {
-		if value != 0 {
-			details[key] = value
-		}
-	}
-	putScore := func(key string, value *int) {
-		if value != nil {
-			details[key] = *value
-		}
-	}
-
-	putString("releaseTitle", r.ReleaseTitle)
-	putString("releaseGroup", r.ReleaseGroup)
-	putString("mediaCover", r.MediaCoverPath)
-	putInt("size", r.Size)
-	putScore("customFormatScore", r.CustomFormatScore)
 	if r.IsUpgrade {
-		putString("previousQuality", r.PreviousQuality)
-		putInt("previousSize", r.PreviousSize)
-		putScore("previousCustomFormatScore", r.PreviousCustomFormatScore)
+		details.PreviousQuality = r.PreviousQuality
+		details.PreviousSize = r.PreviousSize
+		details.PreviousCustomFormatScore = r.PreviousCustomFormatScore
 	}
 	if m := r.MediaInfo; m != nil {
-		putString("resolution", m.Resolution)
-		putString("videoCodec", m.VideoCodec)
-		putInt("videoBitDepth", int64(m.VideoBitDepth))
-		putInt("videoBitrate", m.VideoBitrate)
-		putString("videoDynamicRange", m.VideoDynamicRangeType)
-		putString("audioCodec", m.AudioCodec)
-		if m.AudioChannels != 0 {
-			details["audioChannels"] = m.AudioChannels
-		}
-		putInt("audioBitrate", m.AudioBitrate)
-		putString("audioBitrateText", m.AudioBitrateText)
-		putString("audioBits", m.AudioBits)
-		putString("audioSampleRate", m.AudioSampleRate)
-		putString("runTime", m.RunTime)
+		details.Resolution = m.Resolution
+		details.VideoCodec = m.VideoCodec
+		details.VideoBitDepth = m.VideoBitDepth
+		details.VideoBitrate = m.VideoBitrate
+		details.VideoDynamicRange = m.VideoDynamicRangeType
+		details.AudioCodec = m.AudioCodec
+		details.AudioChannels = m.AudioChannels
+		details.AudioBitrate = m.AudioBitrate
+		details.AudioBitrateText = m.AudioBitrateText
+		details.AudioBits = m.AudioBits
+		details.AudioSampleRate = m.AudioSampleRate
+		details.RunTime = m.RunTime
 	}
 	return details
 }
