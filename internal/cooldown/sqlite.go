@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strings"
 	"time"
 	"uuid"
 )
@@ -30,25 +29,17 @@ func (r *SQLiteRepository) FilterCoolingDown(
 		return nil, nil
 	}
 
-	placeholders := make([]string, len(itemIDs))
-	args := make([]any, 0, len(itemIDs)+2)
-	args = append(args, instanceID.String())
-	for i, id := range itemIDs {
-		placeholders[i] = "?"
-		args = append(args, id)
+	wanted := make(map[int]struct{}, len(itemIDs))
+	for _, id := range itemIDs {
+		wanted[id] = struct{}{}
 	}
-	args = append(args, int64(cooldownPeriod.Seconds()))
 
-	//nolint:gosec // placeholders are generated literals ("?"), not user input
-	query := fmt.Sprintf(
+	rows, err := r.db.QueryContext(ctx,
 		`SELECT item_id
 		   FROM search_cooldowns
 		  WHERE instance_id = ?
-		    AND item_id IN (%s)
-		    AND searched_at > strftime('%%Y-%%m-%%dT%%H:%%M:%%fZ', 'now', '-' || CAST(? AS TEXT) || ' seconds')`,
-		strings.Join(placeholders, ", "))
-
-	rows, err := r.db.QueryContext(ctx, query, args...)
+		    AND searched_at > strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-' || CAST(? AS TEXT) || ' seconds')`,
+		instanceID.String(), int64(cooldownPeriod.Seconds()))
 	if err != nil {
 		return nil, fmt.Errorf("querying items on cooldown: %w", err)
 	}
@@ -60,7 +51,9 @@ func (r *SQLiteRepository) FilterCoolingDown(
 		if err := rows.Scan(&id); err != nil {
 			return nil, fmt.Errorf("scanning cooldown item: %w", err)
 		}
-		coolingDown = append(coolingDown, id)
+		if _, ok := wanted[id]; ok {
+			coolingDown = append(coolingDown, id)
+		}
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterating cooldown rows: %w", err)

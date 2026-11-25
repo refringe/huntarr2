@@ -3,6 +3,7 @@ package cooldown
 import (
 	"context"
 	"crypto/rand"
+	"slices"
 	"testing"
 	"time"
 
@@ -252,5 +253,46 @@ func TestSQLiteRecordSearchesUpdatesTimestamp(t *testing.T) {
 		t.Errorf(
 			"expected 1 cooling down after re-record, got %d",
 			len(coolingDown))
+	}
+}
+
+func TestSQLiteFilterCoolingDownLargeCandidateList(t *testing.T) {
+	t.Parallel()
+	db := testdb.New(t)
+	repo := NewSQLiteRepository(db)
+	ctx := context.Background()
+
+	encKey := make([]byte, 32)
+	if _, err := rand.Read(encKey); err != nil {
+		t.Fatalf("generating encryption key: %v", err)
+	}
+	instRepo := instance.NewSQLiteRepository(db, encKey)
+	inst := instance.Instance{
+		Name:      "large-list-test",
+		AppType:   instance.AppTypeSonarr,
+		BaseURL:   "http://test:8989",
+		APIKey:    "test-api-key",
+		TimeoutMs: 15000,
+	}
+	if err := instRepo.Create(ctx, &inst); err != nil {
+		t.Fatalf("creating test instance: %v", err)
+	}
+
+	if err := repo.RecordSearches(ctx, inst.ID, []int{7, 39999, 50001}); err != nil {
+		t.Fatalf("RecordSearches: %v", err)
+	}
+
+	candidates := make([]int, 40000)
+	for i := range candidates {
+		candidates[i] = i + 1
+	}
+
+	coolingDown, err := repo.FilterCoolingDown(ctx, inst.ID, candidates, time.Hour)
+	if err != nil {
+		t.Fatalf("FilterCoolingDown with %d candidates: %v", len(candidates), err)
+	}
+	slices.Sort(coolingDown)
+	if want := []int{7, 39999}; !slices.Equal(coolingDown, want) {
+		t.Errorf("coolingDown = %v, want %v", coolingDown, want)
 	}
 }
