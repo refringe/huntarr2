@@ -48,9 +48,6 @@ func TestLoad(t *testing.T) {
 					t.Errorf("SchedulerTickSecs = %d, want 30",
 						cfg.SchedulerTickSecs)
 				}
-				if cfg.IsDevelopment() {
-					t.Error("IsDevelopment() = true, want false")
-				}
 				if len(cfg.EncryptionKey) != 32 {
 					t.Errorf("EncryptionKey length = %d, want 32",
 						len(cfg.EncryptionKey))
@@ -81,9 +78,6 @@ func TestLoad(t *testing.T) {
 				if cfg.SchedulerTickSecs != 15 {
 					t.Errorf("SchedulerTickSecs = %d, want 15",
 						cfg.SchedulerTickSecs)
-				}
-				if !cfg.IsDevelopment() {
-					t.Error("IsDevelopment() = false, want true")
 				}
 			},
 		},
@@ -179,9 +173,6 @@ func TestLoad(t *testing.T) {
 			},
 			check: func(t *testing.T, cfg *Config) {
 				t.Helper()
-				if !cfg.AuthEnabled() {
-					t.Error("AuthEnabled() = false, want true")
-				}
 				if cfg.AuthUsername != "admin" {
 					t.Errorf("AuthUsername = %q, want %q",
 						cfg.AuthUsername, "admin")
@@ -199,8 +190,8 @@ func TestLoad(t *testing.T) {
 			},
 			check: func(t *testing.T, cfg *Config) {
 				t.Helper()
-				if cfg.AuthEnabled() {
-					t.Error("AuthEnabled() = true, want false")
+				if cfg.AuthUsername != "" || cfg.AuthPassword != "" {
+					t.Errorf("auth = %q/%q, want both empty", cfg.AuthUsername, cfg.AuthPassword)
 				}
 			},
 		},

@@ -25,16 +25,6 @@ func (f *fakeRepository) List(_ context.Context) ([]Instance, error) {
 	return out, nil
 }
 
-func (f *fakeRepository) ListByType(_ context.Context, appType AppType) ([]Instance, error) {
-	var out []Instance
-	for _, inst := range f.instances {
-		if inst.AppType == appType {
-			out = append(out, inst)
-		}
-	}
-	return out, nil
-}
-
 func (f *fakeRepository) Get(_ context.Context, id uuid.UUID) (Instance, error) {
 	inst, ok := f.instances[id]
 	if !ok {

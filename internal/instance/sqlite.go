@@ -41,21 +41,6 @@ func (r *SQLiteRepository) List(ctx context.Context) ([]Instance, error) {
 	return r.collectInstances(rows)
 }
 
-// ListByType returns all instances of the given application type ordered by name.
-func (r *SQLiteRepository) ListByType(ctx context.Context, appType AppType) ([]Instance, error) {
-	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, name, app_type, base_url, api_key_enc,
-		        timeout_ms, created_at, updated_at
-		   FROM instances
-		  WHERE app_type = ?
-		  ORDER BY name`, string(appType))
-	if err != nil {
-		return nil, fmt.Errorf("querying instances by type: %w", err)
-	}
-
-	return r.collectInstances(rows)
-}
-
 // Get returns the instance with the given ID, or ErrNotFound when no matching row exists.
 func (r *SQLiteRepository) Get(ctx context.Context, id uuid.UUID) (Instance, error) {
 	row := r.db.QueryRowContext(ctx,

@@ -63,16 +63,6 @@ func Load() (*Config, error) {
 	return cfg, nil
 }
 
-// IsDevelopment reports whether the application is running in a development context, approximated as debug log level.
-func (c *Config) IsDevelopment() bool {
-	return c.LogLevel == zerolog.DebugLevel
-}
-
-// AuthEnabled returns true when both AuthUsername and AuthPassword are configured.
-func (c *Config) AuthEnabled() bool {
-	return c.AuthUsername != "" && c.AuthPassword != ""
-}
-
 // validate checks all configuration constraints, returning an error joining every violation found.
 func (c *Config) validate() error {
 	var errs []error

@@ -156,60 +156,6 @@ func TestSQLiteRepository_List(t *testing.T) {
 	}
 }
 
-func TestSQLiteRepository_ListByType(t *testing.T) {
-	t.Parallel()
-
-	db := testdb.New(t)
-	repo := NewSQLiteRepository(db, randomKey(t))
-	ctx := context.Background()
-
-	instances := []struct {
-		name    string
-		appType AppType
-	}{
-		{"Sonarr One", AppTypeSonarr},
-		{"Radarr One", AppTypeRadarr},
-		{"Sonarr Two", AppTypeSonarr},
-		{"Lidarr One", AppTypeLidarr},
-	}
-
-	for _, i := range instances {
-		inst := newTestInstance(i.name, i.appType)
-		if err := repo.Create(ctx, inst); err != nil {
-			t.Fatalf("Create %q: %v", i.name, err)
-		}
-	}
-
-	sonarrs, err := repo.ListByType(ctx, AppTypeSonarr)
-	if err != nil {
-		t.Fatalf("ListByType sonarr: %v", err)
-	}
-	if len(sonarrs) != 2 {
-		t.Errorf("expected 2 sonarr instances, got %d", len(sonarrs))
-	}
-	for _, inst := range sonarrs {
-		if inst.AppType != AppTypeSonarr {
-			t.Errorf("expected AppType sonarr, got %q", inst.AppType)
-		}
-	}
-
-	radarrs, err := repo.ListByType(ctx, AppTypeRadarr)
-	if err != nil {
-		t.Fatalf("ListByType radarr: %v", err)
-	}
-	if len(radarrs) != 1 {
-		t.Errorf("expected 1 radarr instance, got %d", len(radarrs))
-	}
-
-	whisparrs, err := repo.ListByType(ctx, AppTypeWhisparrV3)
-	if err != nil {
-		t.Fatalf("ListByType whisparr: %v", err)
-	}
-	if len(whisparrs) != 0 {
-		t.Errorf("expected 0 whisparr instances, got %d", len(whisparrs))
-	}
-}
-
 func TestSQLiteRepository_Update(t *testing.T) {
 	t.Parallel()
 
@@ -381,14 +327,6 @@ func TestSQLiteRepository_CRUDLifecycle(t *testing.T) {
 	}
 	if len(all) != 1 {
 		t.Fatalf("expected 1 instance in List, got %d", len(all))
-	}
-
-	byType, err := repo.ListByType(ctx, AppTypeSonarr)
-	if err != nil {
-		t.Fatalf("ListByType: %v", err)
-	}
-	if len(byType) != 1 {
-		t.Fatalf("expected 1 sonarr instance, got %d", len(byType))
 	}
 
 	inst.Name = "Lifecycle Updated"

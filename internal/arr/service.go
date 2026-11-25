@@ -30,14 +30,20 @@ type InstanceStatus struct {
 	Version   string
 }
 
+// instanceReader lists and fetches configured *arr instances.
+type instanceReader interface {
+	List(ctx context.Context) ([]instance.Instance, error)
+	Get(ctx context.Context, id uuid.UUID) (instance.Instance, error)
+}
+
 // Service aggregates data from all *arr instances (Sonarr, Radarr, Lidarr, Whisparr v2/v3).
 type Service struct {
-	instances instance.Repository
+	instances instanceReader
 	newApp    func(appType instance.AppType, baseURL, apiKey string, timeout time.Duration) (App, error)
 }
 
 // NewService returns a Service that reads *arr instances from the given repository.
-func NewService(instances instance.Repository) *Service {
+func NewService(instances instanceReader) *Service {
 	return &Service{instances: instances, newApp: NewApp}
 }
 

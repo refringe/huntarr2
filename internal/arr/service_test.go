@@ -21,16 +21,6 @@ func (f *fakeRepository) List(_ context.Context) ([]instance.Instance, error) {
 	return f.instances, nil
 }
 
-func (f *fakeRepository) ListByType(_ context.Context, appType instance.AppType) ([]instance.Instance, error) {
-	var out []instance.Instance
-	for _, inst := range f.instances {
-		if inst.AppType == appType {
-			out = append(out, inst)
-		}
-	}
-	return out, nil
-}
-
 func (f *fakeRepository) Get(_ context.Context, id uuid.UUID) (instance.Instance, error) {
 	for _, inst := range f.instances {
 		if inst.ID == id {
@@ -38,34 +28,6 @@ func (f *fakeRepository) Get(_ context.Context, id uuid.UUID) (instance.Instance
 		}
 	}
 	return instance.Instance{}, instance.ErrNotFound
-}
-
-func (f *fakeRepository) Create(_ context.Context, inst *instance.Instance) error {
-	if inst.ID == uuid.Nil() {
-		inst.ID = uuid.New()
-	}
-	f.instances = append(f.instances, *inst)
-	return nil
-}
-
-func (f *fakeRepository) Update(_ context.Context, inst *instance.Instance) error {
-	for i, existing := range f.instances {
-		if existing.ID == inst.ID {
-			f.instances[i] = *inst
-			return nil
-		}
-	}
-	return instance.ErrNotFound
-}
-
-func (f *fakeRepository) Delete(_ context.Context, id uuid.UUID) error {
-	for i, inst := range f.instances {
-		if inst.ID == id {
-			f.instances = append(f.instances[:i], f.instances[i+1:]...)
-			return nil
-		}
-	}
-	return instance.ErrNotFound
 }
 
 func TestStatusNoInstances(t *testing.T) {
