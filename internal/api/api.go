@@ -32,9 +32,7 @@ type arrService interface {
 type settingsService interface {
 	ResolveGlobal(ctx context.Context) (settings.Resolved, error)
 	Resolve(ctx context.Context, instanceID uuid.UUID) (settings.Resolved, error)
-	Set(ctx context.Context, instanceID *uuid.UUID, key, value string) error
 	SetBatch(ctx context.Context, instanceID *uuid.UUID, entries []settings.SettingEntry) error
-	Remove(ctx context.Context, instanceID *uuid.UUID, key string) error
 	RemoveBatch(ctx context.Context, instanceID *uuid.UUID, keys []string) error
 }
 

@@ -41,7 +41,7 @@ func TestSQLiteRepository(t *testing.T) {
 
 	t.Run("GlobalUpsertAndList", func(t *testing.T) {
 		s := &Setting{Key: KeyBatchSize, Value: "10"}
-		if err := repo.Upsert(ctx, s); err != nil {
+		if err := repo.UpsertBatch(ctx, []Setting{*s}); err != nil {
 			t.Fatalf("upserting global setting: %v", err)
 		}
 
@@ -67,7 +67,7 @@ func TestSQLiteRepository(t *testing.T) {
 		}
 
 		s2 := &Setting{Key: KeyBatchSize, Value: "20"}
-		if err := repo.Upsert(ctx, s2); err != nil {
+		if err := repo.UpsertBatch(ctx, []Setting{*s2}); err != nil {
 			t.Fatalf("upserting global setting (update): %v", err)
 		}
 		globals, err = repo.ListGlobal(ctx)
@@ -90,7 +90,7 @@ func TestSQLiteRepository(t *testing.T) {
 			Key:        KeySearchLimit,
 			Value:      "50",
 		}
-		if err := repo.Upsert(ctx, s); err != nil {
+		if err := repo.UpsertBatch(ctx, []Setting{*s}); err != nil {
 			t.Fatalf("upserting per-instance setting: %v", err)
 		}
 
@@ -118,7 +118,7 @@ func TestSQLiteRepository(t *testing.T) {
 		instID := inst.ID
 
 		globalSetting := &Setting{Key: KeyEnabled, Value: "true"}
-		if err := repo.Upsert(ctx, globalSetting); err != nil {
+		if err := repo.UpsertBatch(ctx, []Setting{*globalSetting}); err != nil {
 			t.Fatalf("upserting global setting: %v", err)
 		}
 
@@ -127,7 +127,7 @@ func TestSQLiteRepository(t *testing.T) {
 			Key:        KeyEnabled,
 			Value:      "false",
 		}
-		if err := repo.Upsert(ctx, instanceSetting); err != nil {
+		if err := repo.UpsertBatch(ctx, []Setting{*instanceSetting}); err != nil {
 			t.Fatalf("upserting per-instance setting: %v", err)
 		}
 
@@ -164,11 +164,11 @@ func TestSQLiteRepository(t *testing.T) {
 
 	t.Run("Delete", func(t *testing.T) {
 		s := &Setting{Key: KeyCooldownPeriod, Value: "3600"}
-		if err := repo.Upsert(ctx, s); err != nil {
+		if err := repo.UpsertBatch(ctx, []Setting{*s}); err != nil {
 			t.Fatalf("upserting setting before delete: %v", err)
 		}
 
-		if err := repo.Delete(ctx, nil, KeyCooldownPeriod); err != nil {
+		if err := repo.DeleteBatch(ctx, nil, []string{KeyCooldownPeriod}); err != nil {
 			t.Fatalf("deleting global setting: %v", err)
 		}
 
@@ -182,7 +182,7 @@ func TestSQLiteRepository(t *testing.T) {
 			}
 		}
 
-		if err := repo.Delete(ctx, nil, "nonexistent_key"); err != nil {
+		if err := repo.DeleteBatch(ctx, nil, []string{"nonexistent_key"}); err != nil {
 			t.Fatalf("deleting non-existent key: %v", err)
 		}
 	})
@@ -194,11 +194,11 @@ func TestSQLiteRepository(t *testing.T) {
 			Key:        KeySearchInterval,
 			Value:      "1800",
 		}
-		if err := repo.Upsert(ctx, s); err != nil {
+		if err := repo.UpsertBatch(ctx, []Setting{*s}); err != nil {
 			t.Fatalf("upserting per-instance setting: %v", err)
 		}
 
-		if err := repo.Delete(ctx, &instID, KeySearchInterval); err != nil {
+		if err := repo.DeleteBatch(ctx, &instID, []string{KeySearchInterval}); err != nil {
 			t.Fatalf("deleting per-instance setting: %v", err)
 		}
 

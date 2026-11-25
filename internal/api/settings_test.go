@@ -16,27 +16,14 @@ import (
 type fakeSettingsService struct {
 	resolved         settings.Resolved
 	setErr           error
-	setCalls         []setCall
 	setBatchCalls    []setBatchCall
 	removeErr        error
-	removeCalls      []removeCall
 	removeBatchCalls []removeBatchCall
-}
-
-type setCall struct {
-	instanceID *uuid.UUID
-	key        string
-	value      string
 }
 
 type setBatchCall struct {
 	instanceID *uuid.UUID
 	entries    []settings.SettingEntry
-}
-
-type removeCall struct {
-	instanceID *uuid.UUID
-	key        string
 }
 
 type removeBatchCall struct {
@@ -52,19 +39,9 @@ func (f *fakeSettingsService) Resolve(_ context.Context, _ uuid.UUID) (settings.
 	return f.resolved, nil
 }
 
-func (f *fakeSettingsService) Set(_ context.Context, instanceID *uuid.UUID, key, value string) error {
-	f.setCalls = append(f.setCalls, setCall{instanceID, key, value})
-	return f.setErr
-}
-
 func (f *fakeSettingsService) SetBatch(_ context.Context, instanceID *uuid.UUID, entries []settings.SettingEntry) error {
 	f.setBatchCalls = append(f.setBatchCalls, setBatchCall{instanceID, entries})
 	return f.setErr
-}
-
-func (f *fakeSettingsService) Remove(_ context.Context, instanceID *uuid.UUID, key string) error {
-	f.removeCalls = append(f.removeCalls, removeCall{instanceID, key})
-	return f.removeErr
 }
 
 func (f *fakeSettingsService) RemoveBatch(_ context.Context, instanceID *uuid.UUID, keys []string) error {

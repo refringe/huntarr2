@@ -89,40 +89,7 @@ func scanSettings(rows *sql.Rows) ([]Setting, error) {
 	return out, nil
 }
 
-// Upsert creates or updates a setting via the global or per-instance unique index.
-func (r *SQLiteRepository) Upsert(ctx context.Context, s *Setting) error {
-	now := time.Now().UTC().Format(time.RFC3339Nano)
-	id := uuid.New().String()
-
-	if s.InstanceID == nil {
-		_, err := r.db.ExecContext(ctx,
-			`INSERT INTO settings (id, setting_key, value, updated_at)
-			      VALUES (?, ?, ?, ?)
-			 ON CONFLICT (setting_key) WHERE instance_id IS NULL
-			 DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
-			id, s.Key, s.Value, now)
-		if err != nil {
-			return fmt.Errorf("upserting global setting %q: %w",
-				s.Key, err)
-		}
-		return nil
-	}
-
-	_, err := r.db.ExecContext(ctx,
-		`INSERT INTO settings
-		        (id, instance_id, setting_key, value, updated_at)
-		 VALUES (?, ?, ?, ?, ?)
-		 ON CONFLICT (instance_id, setting_key)
-		     WHERE instance_id IS NOT NULL
-		 DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
-		id, s.InstanceID.String(), s.Key, s.Value, now)
-	if err != nil {
-		return fmt.Errorf("upserting instance setting %q: %w", s.Key, err)
-	}
-	return nil
-}
-
-// execUpsert runs the upsert SQL for a single setting within an existing transaction.
+// execUpsert creates or updates one setting within tx via the global or per-instance unique index.
 func execUpsert(ctx context.Context, tx *sql.Tx, s *Setting) error {
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	id := uuid.New().String()
@@ -165,28 +132,6 @@ func (r *SQLiteRepository) UpsertBatch(ctx context.Context, settings []Setting) 
 		}
 		return nil
 	})
-}
-
-// Delete removes a setting by key and optional instance_id.
-func (r *SQLiteRepository) Delete(ctx context.Context, instanceID *uuid.UUID, key string) error {
-	if instanceID == nil {
-		_, err := r.db.ExecContext(ctx,
-			`DELETE FROM settings
-			  WHERE instance_id IS NULL AND setting_key = ?`, key)
-		if err != nil {
-			return fmt.Errorf("deleting global setting %q: %w", key, err)
-		}
-		return nil
-	}
-
-	_, err := r.db.ExecContext(ctx,
-		`DELETE FROM settings
-		  WHERE instance_id = ? AND setting_key = ?`,
-		instanceID.String(), key)
-	if err != nil {
-		return fmt.Errorf("deleting instance setting %q: %w", key, err)
-	}
-	return nil
 }
 
 // DeleteBatch atomically removes multiple settings in a single database transaction.

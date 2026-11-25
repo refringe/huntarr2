@@ -3,6 +3,7 @@ package settings
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 	"time"
 	"uuid"
@@ -25,73 +26,39 @@ func (f *fakeRepository) ListByInstance(_ context.Context, id uuid.UUID) ([]Sett
 	return f.instance[id], nil
 }
 
-func (f *fakeRepository) Upsert(_ context.Context, s *Setting) error {
-	now := time.Now()
-	if s.InstanceID == nil {
-		for i, existing := range f.global {
-			if existing.Key == s.Key {
-				f.global[i].Value = s.Value
-				f.global[i].UpdatedAt = now
-				s.ID = existing.ID
-				s.UpdatedAt = now
-				return nil
-			}
-		}
-		s.ID = uuid.New()
-		s.UpdatedAt = now
-		f.global = append(f.global, *s)
-		return nil
+func (f *fakeRepository) upsert(s Setting) {
+	s.UpdatedAt = time.Now()
+	rows := &f.global
+	if s.InstanceID != nil {
+		layer := f.instance[*s.InstanceID]
+		rows = &layer
+		defer func() { f.instance[*s.InstanceID] = layer }()
 	}
-	id := *s.InstanceID
-	for i, existing := range f.instance[id] {
+	for i, existing := range *rows {
 		if existing.Key == s.Key {
-			f.instance[id][i].Value = s.Value
-			f.instance[id][i].UpdatedAt = now
 			s.ID = existing.ID
-			s.UpdatedAt = now
-			return nil
+			(*rows)[i] = s
+			return
 		}
 	}
 	s.ID = uuid.New()
-	s.UpdatedAt = now
-	f.instance[id] = append(f.instance[id], *s)
-	return nil
+	*rows = append(*rows, s)
 }
 
 func (f *fakeRepository) UpsertBatch(_ context.Context, settings []Setting) error {
 	for _, s := range settings {
-		if err := f.Upsert(context.Background(), &s); err != nil {
-			return err
-		}
+		f.upsert(s)
 	}
 	return nil
 }
 
-func (f *fakeRepository) Delete(_ context.Context, instanceID *uuid.UUID, key string) error {
-	if instanceID == nil {
-		for i, s := range f.global {
-			if s.Key == key {
-				f.global = append(f.global[:i], f.global[i+1:]...)
-				return nil
-			}
-		}
-		return nil
-	}
-	id := *instanceID
-	for i, s := range f.instance[id] {
-		if s.Key == key {
-			f.instance[id] = append(f.instance[id][:i], f.instance[id][i+1:]...)
-			return nil
-		}
-	}
-	return nil
-}
-
-func (f *fakeRepository) DeleteBatch(ctx context.Context, instanceID *uuid.UUID, keys []string) error {
+func (f *fakeRepository) DeleteBatch(_ context.Context, instanceID *uuid.UUID, keys []string) error {
 	for _, key := range keys {
-		if err := f.Delete(ctx, instanceID, key); err != nil {
-			return err
+		if instanceID == nil {
+			f.global = slices.DeleteFunc(f.global, func(s Setting) bool { return s.Key == key })
+			continue
 		}
+		f.instance[*instanceID] = slices.DeleteFunc(f.instance[*instanceID], func(s Setting) bool { return s.Key == key })
 	}
 	return nil
 }
@@ -226,7 +193,7 @@ func TestResolveOutOfRangeSearchInterval(t *testing.T) {
 func TestSetInvalidKey(t *testing.T) {
 	t.Parallel()
 	svc := NewService(newFakeRepository())
-	err := svc.Set(context.Background(), nil, "nonexistent_key", "42")
+	err := svc.SetBatch(context.Background(), nil, []SettingEntry{{Key: "nonexistent_key", Value: "42"}})
 	if !errors.Is(err, ErrUnknownKey) {
 		t.Errorf("err = %v, want ErrUnknownKey", err)
 	}
@@ -261,7 +228,7 @@ func TestSetInvalidValue(t *testing.T) {
 	svc := NewService(newFakeRepository())
 	for _, tt := range tests {
 		t.Run(tt.key+"="+tt.value, func(t *testing.T) {
-			err := svc.Set(context.Background(), nil, tt.key, tt.value)
+			err := svc.SetBatch(context.Background(), nil, []SettingEntry{{Key: tt.key, Value: tt.value}})
 			if !errors.Is(err, ErrInvalidValue) {
 				t.Errorf("err = %v, want ErrInvalidValue", err)
 			}
@@ -292,7 +259,7 @@ func TestSetValidValues(t *testing.T) {
 	svc := NewService(newFakeRepository())
 	for _, tt := range tests {
 		t.Run(tt.key+"="+tt.value, func(t *testing.T) {
-			err := svc.Set(context.Background(), nil, tt.key, tt.value)
+			err := svc.SetBatch(context.Background(), nil, []SettingEntry{{Key: tt.key, Value: tt.value}})
 			if err != nil {
 				t.Errorf("unexpected error: %v", err)
 			}
@@ -308,7 +275,7 @@ func TestRemove(t *testing.T) {
 	}
 
 	svc := NewService(repo)
-	if err := svc.Remove(context.Background(), nil, KeyBatchSize); err != nil {
+	if err := svc.RemoveBatch(context.Background(), nil, []string{KeyBatchSize}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -324,7 +291,7 @@ func TestRemove(t *testing.T) {
 func TestRemoveInvalidKey(t *testing.T) {
 	t.Parallel()
 	svc := NewService(newFakeRepository())
-	err := svc.Remove(context.Background(), nil, "bad_key")
+	err := svc.RemoveBatch(context.Background(), nil, []string{"bad_key"})
 	if !errors.Is(err, ErrUnknownKey) {
 		t.Errorf("err = %v, want ErrUnknownKey", err)
 	}

@@ -52,21 +52,6 @@ func (s *Service) ResolveGlobal(ctx context.Context) (Resolved, error) {
 	return resolved, nil
 }
 
-// Set validates and persists a setting; a nil instanceID sets a global value, non-nil a per-instance override.
-func (s *Service) Set(ctx context.Context, instanceID *uuid.UUID, key, value string) error {
-	if !ValidKey(key) {
-		return fmt.Errorf("key %q: %w", key, ErrUnknownKey)
-	}
-	if err := validateValue(key, value); err != nil {
-		return err
-	}
-	return s.repo.Upsert(ctx, &Setting{
-		InstanceID: instanceID,
-		Key:        key,
-		Value:      value,
-	})
-}
-
 // SetBatch validates every entry then persists them atomically; a nil instanceID targets global values.
 func (s *Service) SetBatch(ctx context.Context, instanceID *uuid.UUID, entries []SettingEntry) error {
 	for _, e := range entries {
@@ -87,14 +72,6 @@ func (s *Service) SetBatch(ctx context.Context, instanceID *uuid.UUID, entries [
 		}
 	}
 	return s.repo.UpsertBatch(ctx, settings)
-}
-
-// Remove deletes a setting override; a nil instanceID removes the global value, non-nil the per-instance override.
-func (s *Service) Remove(ctx context.Context, instanceID *uuid.UUID, key string) error {
-	if !ValidKey(key) {
-		return fmt.Errorf("key %q: %w", key, ErrUnknownKey)
-	}
-	return s.repo.Delete(ctx, instanceID, key)
 }
 
 // RemoveBatch validates every key before atomically deleting the matching setting overrides.
@@ -167,14 +144,6 @@ func applyOverrides(r *Resolved, settings []Setting) {
 			}
 		}
 	}
-}
-
-// ValidateEntry checks that key is recognised and that value is parsable and within acceptable bounds for that key.
-func ValidateEntry(key, value string) error {
-	if !ValidKey(key) {
-		return fmt.Errorf("key %q: %w", key, ErrUnknownKey)
-	}
-	return validateValue(key, value)
 }
 
 // validateValue checks that the raw string is parsable and within acceptable bounds for the given key.
