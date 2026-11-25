@@ -5,6 +5,8 @@ import (
 	"encoding/json/v2"
 	"net/http"
 	"net/http/httptest"
+	"slices"
+	"sync"
 	"testing"
 	"time"
 )
@@ -356,6 +358,59 @@ func TestFetchArrHistoryOldRecordFiltered(t *testing.T) {
 	}
 	if len(got) != 0 {
 		t.Errorf("len = %d, want 0 (old record should be filtered out)", len(got))
+	}
+}
+
+func TestFetchArrHistoryPagesBackToSince(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now().UTC()
+	since := now.Add(-24 * time.Hour)
+
+	importRecord := func(id int, date time.Time) map[string]any {
+		return map[string]any{
+			"id":          id,
+			"date":        date.Format(time.RFC3339Nano),
+			"eventType":   "downloadFolderImported",
+			"sourceTitle": "Release",
+			"episodeId":   id,
+			"data":        map[string]string{},
+			"quality":     map[string]any{"quality": map[string]any{"name": "HDTV-720p"}},
+		}
+	}
+	importPages := map[string][]map[string]any{
+		"1": {importRecord(1, now.Add(-1*time.Hour)), importRecord(2, now.Add(-2*time.Hour))},
+		"2": {importRecord(3, now.Add(-3*time.Hour)), importRecord(4, now.Add(-48*time.Hour))},
+		"3": {importRecord(5, now.Add(-72*time.Hour)), importRecord(6, now.Add(-96*time.Hour))},
+	}
+
+	var mu sync.Mutex
+	var importPagesRequested []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Query().Get("eventType") != "3" { // sonarrImported
+			json.MarshalWrite(w, map[string]any{"records": []any{}}) //nolint:errcheck // test helper
+			return
+		}
+		page := r.URL.Query().Get("page")
+		mu.Lock()
+		importPagesRequested = append(importPagesRequested, page)
+		mu.Unlock()
+		json.MarshalWrite(w, map[string]any{"records": importPages[page]}) //nolint:errcheck // test helper
+	}))
+	defer srv.Close()
+
+	c := newClient(srv.URL, "key", 5*time.Second)
+	got, err := fetchArrHistory(context.Background(), c, "v3", since, 2, sonarrHistory)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(got) != 3 {
+		t.Errorf("len = %d, want 3 (every record after since across two pages)", len(got))
+	}
+	if want := []string{"1", "2"}; !slices.Equal(importPagesRequested, want) {
+		t.Errorf("import pages requested = %v, want %v", importPagesRequested, want)
 	}
 }
 

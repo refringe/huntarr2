@@ -20,6 +20,9 @@ const (
 
 const mediaCoverHeight = 250
 
+// historyMaxPages bounds how many pages of one event type a single poll reads.
+const historyMaxPages = 20
+
 var historyIncludeParams = []string{"includeMovie", "includeSeries", "includeEpisode", "includeArtist", "includeAlbum"}
 
 // historyConfig holds an application's history event type IDs, item ID field name, and file endpoint name.
@@ -203,17 +206,41 @@ type deletedFile struct {
 	score   *int
 }
 
-// fetchEventPage queries the history endpoint for one event type, given the application's integer enum value.
-func fetchEventPage(
+// fetchEventsSince reads one event type newest first, page by page, until a record dated at or before since.
+func fetchEventsSince(
 	ctx context.Context,
 	c *client,
 	apiVersion string,
 	eventType int,
 	pageSize int,
+	since time.Time,
+) ([]historyRecordResponse, error) {
+	var all []historyRecordResponse
+	for page := 1; page <= historyMaxPages; page++ {
+		records, err := fetchEventPage(ctx, c, apiVersion, eventType, page, pageSize)
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, records...)
+		if len(records) < pageSize || !records[len(records)-1].Date.After(since) {
+			break
+		}
+	}
+	return all, nil
+}
+
+// fetchEventPage queries one page of the history endpoint for an event type, given the application's enum value.
+func fetchEventPage(
+	ctx context.Context,
+	c *client,
+	apiVersion string,
+	eventType int,
+	page int,
+	pageSize int,
 ) ([]historyRecordResponse, error) {
 	params := url.Values{}
 	params.Set("eventType", strconv.Itoa(eventType))
-	params.Set("page", "1")
+	params.Set("page", strconv.Itoa(page))
 	params.Set("pageSize", strconv.Itoa(pageSize))
 	params.Set("sortDirection", "descending")
 	params.Set("sortKey", "date")
@@ -239,7 +266,7 @@ func fetchArrHistory(
 	cfg historyConfig,
 ) ([]HistoryRecord, error) {
 	upgradedItems := make(map[int]deletedFile)
-	deleteRecords, err := fetchEventPage(ctx, c, apiVersion, cfg.deleteEventType, pageSize)
+	deleteRecords, err := fetchEventsSince(ctx, c, apiVersion, cfg.deleteEventType, pageSize, since)
 	if err != nil {
 		log.Warn().Err(err).
 			Int("eventType", cfg.deleteEventType).
@@ -269,7 +296,7 @@ func fetchArrHistory(
 	seen := make(map[int]bool)
 	fetched := 0
 	for _, eventType := range cfg.importEventTypes {
-		importRecords, err := fetchEventPage(ctx, c, apiVersion, eventType, pageSize)
+		importRecords, err := fetchEventsSince(ctx, c, apiVersion, eventType, pageSize, since)
 		if err != nil {
 			return nil, fmt.Errorf("fetching import events (type %d): %w", eventType, err)
 		}
