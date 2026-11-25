@@ -240,6 +240,39 @@ func TestUpgradeable(t *testing.T) {
 	}
 }
 
+func TestUpgradeableUnreadableAPIKey(t *testing.T) {
+	t.Parallel()
+
+	id := uuid.New()
+	svc := NewService(&fakeRepository{instances: []instance.Instance{
+		{ID: id, Name: "Sonarr", AppType: instance.AppTypeSonarr, BaseURL: "http://sonarr.test"},
+	}})
+
+	if _, err := svc.Upgradeable(t.Context(), id); !errors.Is(err, ErrAPIKeyUnreadable) {
+		t.Errorf("err = %v, want ErrAPIKeyUnreadable", err)
+	}
+}
+
+func TestStatusUnreadableAPIKeyIsDisconnected(t *testing.T) {
+	t.Parallel()
+
+	svc := NewService(&fakeRepository{instances: []instance.Instance{
+		{ID: uuid.New(), Name: "Sonarr", AppType: instance.AppTypeSonarr, BaseURL: "http://sonarr.test"},
+	}})
+	svc.newApp = func(instance.AppType, string, string, time.Duration) (App, error) {
+		t.Error("newApp called for an instance without a readable API key")
+		return nil, errors.New("unexpected call")
+	}
+
+	statuses, err := svc.Status(t.Context())
+	if err != nil {
+		t.Fatalf("Status: %v", err)
+	}
+	if len(statuses) != 1 || statuses[0].Connected {
+		t.Errorf("statuses = %+v, want one disconnected instance", statuses)
+	}
+}
+
 func TestTestConnectionVersionCheck(t *testing.T) {
 	t.Parallel()
 

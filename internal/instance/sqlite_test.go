@@ -425,3 +425,45 @@ func TestSQLiteRepository_CRUDLifecycle(t *testing.T) {
 		t.Errorf("expected empty list after Delete, got %d", len(all))
 	}
 }
+
+func TestSQLiteRepository_UndecryptableKeyReadsAsEmpty(t *testing.T) {
+	t.Parallel()
+	db := testdb.New(t)
+	ctx := t.Context()
+
+	original := NewSQLiteRepository(db, randomKey(t))
+	readable := newTestInstance("rekeyed", AppTypeSonarr)
+	if err := original.Create(ctx, readable); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	rekeyed := NewSQLiteRepository(db, randomKey(t))
+
+	listed, err := rekeyed.List(ctx)
+	if err != nil {
+		t.Fatalf("List with a different encryption key: %v", err)
+	}
+	if len(listed) != 1 || listed[0].APIKey != "" {
+		t.Fatalf("List = %+v, want the one instance with an empty APIKey", listed)
+	}
+
+	got, err := rekeyed.Get(ctx, readable.ID)
+	if err != nil {
+		t.Fatalf("Get with a different encryption key: %v", err)
+	}
+	if got.APIKey != "" {
+		t.Errorf("APIKey = %q, want empty", got.APIKey)
+	}
+
+	got.APIKey = "re-entered-key"
+	if err := rekeyed.Update(ctx, &got); err != nil {
+		t.Fatalf("Update with a re-entered key: %v", err)
+	}
+	got, err = rekeyed.Get(ctx, readable.ID)
+	if err != nil {
+		t.Fatalf("Get after update: %v", err)
+	}
+	if got.APIKey != "re-entered-key" {
+		t.Errorf("APIKey = %q, want the re-entered key", got.APIKey)
+	}
+}

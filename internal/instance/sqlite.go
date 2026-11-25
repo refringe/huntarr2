@@ -8,6 +8,8 @@ import (
 	"time"
 	"uuid"
 
+	"github.com/rs/zerolog/log"
+
 	"github.com/refringe/huntarr2/internal/encrypt"
 )
 
@@ -194,7 +196,7 @@ func (r *SQLiteRepository) collectInstances(rows *sql.Rows) ([]Instance, error) 
 	return instances, nil
 }
 
-// hydrateInstance parses string fields from SQLite into typed fields and decrypts the API key.
+// hydrateInstance parses string fields from SQLite into typed fields; an undecryptable API key is returned empty.
 func (r *SQLiteRepository) hydrateInstance(
 	inst Instance,
 	idStr, appType, createdAt, updatedAt string,
@@ -217,8 +219,8 @@ func (r *SQLiteRepository) hydrateInstance(
 
 	decrypted, err := encrypt.Decrypt(inst.APIKey, r.encryptionKey)
 	if err != nil {
-		return Instance{}, fmt.Errorf("decrypting API key for %s: %w",
-			inst.ID, err)
+		log.Debug().Err(err).Str("instance", inst.ID.String()).Msg("stored API key could not be decrypted")
+		decrypted = ""
 	}
 	inst.APIKey = decrypted
 

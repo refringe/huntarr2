@@ -67,7 +67,7 @@ func (t AppType) Label() string {
 	return string(t)
 }
 
-// Instance represents a configured connection to an *arr application.
+// Instance is a configured connection to an *arr application; APIKey is empty when the stored key cannot be read.
 type Instance struct {
 	ID        uuid.UUID
 	Name      string

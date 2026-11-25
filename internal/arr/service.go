@@ -15,6 +15,9 @@ import (
 	"github.com/refringe/huntarr2/internal/instance"
 )
 
+// ErrAPIKeyUnreadable indicates the instance's stored API key could not be decrypted and must be entered again.
+var ErrAPIKeyUnreadable = errors.New("stored API key cannot be read; enter the instance's API key again")
+
 // ErrVersionMismatch indicates the reached server's major version does not match the selected application type.
 var ErrVersionMismatch = errors.New("application version mismatch")
 
@@ -52,6 +55,12 @@ func (s *Service) Status(ctx context.Context) ([]InstanceStatus, error) {
 			ID:      inst.ID,
 			Name:    inst.Name,
 			AppType: inst.AppType,
+		}
+
+		if inst.APIKey == "" {
+			log.Warn().Err(ErrAPIKeyUnreadable).Str("instance", inst.Name).
+				Msg("skipping status check")
+			continue
 		}
 
 		app, err := s.newApp(inst.AppType, inst.BaseURL, inst.APIKey, instanceTimeout(inst))
@@ -180,6 +189,9 @@ func (s *Service) appForInstance(ctx context.Context, id uuid.UUID) (App, error)
 	inst, err := s.instances.Get(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("fetching instance %s: %w", id, err)
+	}
+	if inst.APIKey == "" {
+		return nil, fmt.Errorf("instance %s: %w", id, ErrAPIKeyUnreadable)
 	}
 	app, err := s.newApp(inst.AppType, inst.BaseURL, inst.APIKey, instanceTimeout(inst))
 	if err != nil {
