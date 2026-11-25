@@ -1042,6 +1042,58 @@ func TestPollUpgradeHistoryDetectsDownloads(t *testing.T) {
 	}
 }
 
+func TestHistoryPollAdvancesToNewestRecordDate(t *testing.T) {
+	instID := uuid.New()
+	instances := &fakeInstanceLister{
+		instances: []instance.Instance{{ID: instID, Name: "Radarr", AppType: instance.AppTypeRadarr}},
+	}
+
+	lastPolled := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
+	older := lastPolled.Add(time.Minute)
+	newest := lastPolled.Add(2 * time.Minute)
+
+	arrSearch := newFakeArrSearcher()
+	arrSearch.historyRecords[instID] = []arr.HistoryRecord{
+		{ID: 1, ItemID: 10, ItemLabel: "Older", Date: older},
+		{ID: 2, ItemID: 11, ItemLabel: "Newest", Date: newest},
+	}
+
+	polls := newFakePollTracker()
+	polls.lastPolled[instID] = lastPolled
+
+	sched := newTestScheduler(t,
+		instances, newFakeSettingsResolver(), newFakeCooldownTracker(), &fakeActivityLogger{}, arrSearch, polls,
+	)
+
+	_ = runScheduler(t, sched)
+
+	if got := polls.lastPolled[instID]; !got.Equal(newest) {
+		t.Errorf("lastPolled = %v, want the newest record date %v", got, newest)
+	}
+}
+
+func TestHistoryPollWithoutRecordsKeepsPollTime(t *testing.T) {
+	instID := uuid.New()
+	instances := &fakeInstanceLister{
+		instances: []instance.Instance{{ID: instID, Name: "Radarr", AppType: instance.AppTypeRadarr}},
+	}
+
+	lastPolled := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
+	polls := newFakePollTracker()
+	polls.lastPolled[instID] = lastPolled
+
+	sched := newTestScheduler(t,
+		instances, newFakeSettingsResolver(), newFakeCooldownTracker(), &fakeActivityLogger{},
+		newFakeArrSearcher(), polls,
+	)
+
+	_ = runScheduler(t, sched)
+
+	if got := polls.lastPolled[instID]; !got.Equal(lastPolled) {
+		t.Errorf("lastPolled = %v, want it unchanged at %v", got, lastPolled)
+	}
+}
+
 func TestMissingItemsIncludedWhenEnabled(t *testing.T) {
 	instID := uuid.New()
 	instances := &fakeInstanceLister{

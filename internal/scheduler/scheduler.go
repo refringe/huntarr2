@@ -362,7 +362,7 @@ func (s *Scheduler) pollUpgradeHistory(ctx context.Context, insts []instance.Ins
 	}
 }
 
-// pollInstanceHistory polls one instance's history, logging an activity entry for each upgrade or download found.
+// pollInstanceHistory logs an activity entry per upgrade or download found and advances the poll time to the newest.
 func (s *Scheduler) pollInstanceHistory(ctx context.Context, inst instance.Instance) {
 	since, err := s.polls.LastPolled(ctx, inst.ID)
 	if err != nil {
@@ -387,7 +387,12 @@ func (s *Scheduler) pollInstanceHistory(ctx context.Context, inst instance.Insta
 	log.Debug().Str("instance", inst.Name).Int("records", len(records)).
 		Msg("history poll returned")
 
+	newest := since
 	for _, r := range records {
+		if r.Date.After(newest) {
+			newest = r.Date
+		}
+
 		action := activity.ActionDownloadDetected
 		label := "new download"
 		if r.IsUpgrade {
@@ -399,7 +404,7 @@ func (s *Scheduler) pollInstanceHistory(ctx context.Context, inst instance.Insta
 			historyDetails(inst, r))
 	}
 
-	if err := s.polls.RecordPoll(ctx, inst.ID, time.Now()); err != nil {
+	if err := s.polls.RecordPoll(ctx, inst.ID, newest); err != nil {
 		log.Warn().Err(err).Str("instance", inst.Name).
 			Msg("recording history poll timestamp")
 	}
