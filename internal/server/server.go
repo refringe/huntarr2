@@ -88,6 +88,11 @@ func (s *Server) Run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
+	return s.serve(ctx)
+}
+
+// serve runs HTTP and the scheduler until ctx is cancelled, then stops the scheduler and drains HTTP for 30 seconds.
+func (s *Server) serve(ctx context.Context) error {
 	schedCtx, schedCancel := context.WithCancel(ctx)
 	schedDone := make(chan struct{})
 	go func() {
