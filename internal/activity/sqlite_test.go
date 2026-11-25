@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"database/sql"
+	"slices"
 	"testing"
 	"time"
 	"uuid"
@@ -569,5 +570,78 @@ func TestSQLiteCombinedFilters(t *testing.T) {
 	if entries[0].Message != "searched Sonarr" {
 		t.Errorf("Message = %q, want %q",
 			entries[0].Message, "searched Sonarr")
+	}
+}
+
+func TestSQLiteListOrdersEntriesWithinOneSecond(t *testing.T) {
+	db := testdb.New(t)
+	repo := NewSQLiteRepository(db)
+
+	base := time.Date(2026, 11, 24, 10, 0, 0, 0, time.UTC)
+	seedEntry(t, repo, &Entry{Level: LevelInfo, Action: ActionSearchCycle, Message: "half", CreatedAt: base.Add(500 * time.Millisecond)})
+	seedEntry(t, repo, &Entry{Level: LevelInfo, Action: ActionSearchCycle, Message: "whole", CreatedAt: base})
+	seedEntry(t, repo, &Entry{Level: LevelInfo, Action: ActionSearchCycle, Message: "later", CreatedAt: base.Add(510 * time.Millisecond)})
+
+	entries, err := repo.List(t.Context(), ListParams{Limit: 10})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+
+	got := make([]string, len(entries))
+	for i, e := range entries {
+		got[i] = e.Message
+	}
+	if want := []string{"later", "half", "whole"}; !slices.Equal(got, want) {
+		t.Errorf("order = %v, want newest first %v", got, want)
+	}
+}
+
+func TestSQLiteTimeFiltersIgnoreTheirZone(t *testing.T) {
+	db := testdb.New(t)
+	repo := NewSQLiteRepository(db)
+
+	created := time.Date(2026, 11, 24, 12, 0, 0, 0, time.UTC)
+	seedEntry(t, repo, &Entry{Level: LevelInfo, Action: ActionSearchCycle, Message: "noon", CreatedAt: created})
+
+	ahead := time.FixedZone("UTC+5", 5*60*60)
+	behind := time.FixedZone("UTC-5", -5*60*60)
+
+	tests := []struct {
+		name  string
+		since time.Time
+		want  int
+	}{
+		{"since half an hour earlier, zone ahead of UTC", created.Add(-30 * time.Minute).In(ahead), 1},
+		{"since half an hour earlier, zone behind UTC", created.Add(-30 * time.Minute).In(behind), 1},
+		{"since half an hour later, zone ahead of UTC", created.Add(30 * time.Minute).In(ahead), 0},
+		{"since half an hour later, zone behind UTC", created.Add(30 * time.Minute).In(behind), 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			count, err := repo.Count(t.Context(), ListParams{Since: &tt.since})
+			if err != nil {
+				t.Fatalf("Count: %v", err)
+			}
+			if count != tt.want {
+				t.Errorf("count = %d, want %d", count, tt.want)
+			}
+
+			stats, err := repo.Stats(t.Context(), &tt.since)
+			if err != nil {
+				t.Fatalf("Stats: %v", err)
+			}
+			if len(stats) != tt.want {
+				t.Errorf("stats rows = %d, want %d", len(stats), tt.want)
+			}
+		})
+	}
+
+	deleted, err := repo.DeleteBefore(t.Context(), created.Add(-30*time.Minute).In(ahead))
+	if err != nil {
+		t.Fatalf("DeleteBefore: %v", err)
+	}
+	if deleted != 0 {
+		t.Errorf("DeleteBefore removed %d entries created after the cutoff, want 0", deleted)
 	}
 }

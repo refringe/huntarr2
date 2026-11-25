@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"time"
 	"uuid"
+
+	"github.com/refringe/huntarr2/internal/database"
 )
 
 // PollTracker persists and queries per-instance history poll timestamps.
@@ -41,7 +43,7 @@ func (r *SQLitePollTracker) LastPolled(ctx context.Context, instanceID uuid.UUID
 			"querying poll state for %s: %w", instanceID, err)
 	}
 
-	t, err := time.Parse(time.RFC3339Nano, raw)
+	t, err := database.ParseTime(raw)
 	if err != nil {
 		return time.Time{}, fmt.Errorf("parsing last_polled: %w", err)
 	}
@@ -58,7 +60,7 @@ func (r *SQLitePollTracker) RecordPoll(ctx context.Context, instanceID uuid.UUID
 
 	if _, err := r.db.ExecContext(ctx, q,
 		instanceID.String(),
-		polledAt.Format(time.RFC3339Nano),
+		database.FormatTime(polledAt),
 	); err != nil {
 		return fmt.Errorf("recording poll state for %s: %w",
 			instanceID, err)

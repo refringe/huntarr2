@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 	"uuid"
+
+	"github.com/refringe/huntarr2/internal/database"
 )
 
 // SQLiteRepository implements Repository using a SQLite database.
@@ -20,7 +22,7 @@ func NewSQLiteRepository(db *sql.DB) *SQLiteRepository {
 	return &SQLiteRepository{db: db}
 }
 
-// Create inserts a new activity log entry, marshalling the Details map to JSON text.
+// Create inserts a new activity log entry, assigning its ID and, when CreatedAt is zero, the current time.
 func (r *SQLiteRepository) Create(ctx context.Context, entry *Entry) error {
 	detailsJSON, err := json.Marshal(entry.Details)
 	if err != nil {
@@ -28,7 +30,10 @@ func (r *SQLiteRepository) Create(ctx context.Context, entry *Entry) error {
 	}
 
 	entry.ID = uuid.New()
-	entry.CreatedAt = time.Now().UTC()
+	if entry.CreatedAt.IsZero() {
+		entry.CreatedAt = time.Now()
+	}
+	entry.CreatedAt = entry.CreatedAt.UTC()
 
 	var instID *string
 	if entry.InstanceID != nil {
@@ -48,7 +53,7 @@ func (r *SQLiteRepository) Create(ctx context.Context, entry *Entry) error {
 		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		entry.ID.String(), instID, string(entry.Level),
 		string(entry.Action), entry.Message, details,
-		entry.CreatedAt.Format(time.RFC3339Nano))
+		database.FormatTime(entry.CreatedAt))
 	if err != nil {
 		return fmt.Errorf("creating activity entry: %w", err)
 	}
@@ -109,7 +114,7 @@ func (r *SQLiteRepository) Stats(ctx context.Context, since *time.Time) ([]Actio
 	            FROM activity_log al
 	            LEFT JOIN instances i ON i.id = al.instance_id`
 	if since != nil {
-		args = append(args, since.Format(time.RFC3339Nano))
+		args = append(args, database.FormatTime(*since))
 		query += " WHERE al.created_at >= ?"
 	}
 	query += ` GROUP BY al.instance_id, i.name, al.action
@@ -151,7 +156,7 @@ func (r *SQLiteRepository) Stats(ctx context.Context, since *time.Time) ([]Actio
 func (r *SQLiteRepository) DeleteBefore(ctx context.Context, before time.Time) (int64, error) {
 	result, err := r.db.ExecContext(ctx,
 		`DELETE FROM activity_log WHERE created_at < ?`,
-		before.Format(time.RFC3339Nano))
+		database.FormatTime(before))
 	if err != nil {
 		return 0, fmt.Errorf("deleting old activity entries: %w", err)
 	}
@@ -191,7 +196,7 @@ func scanEntry(rows *sql.Rows) (Entry, error) {
 	e.Level = Level(level)
 	e.Action = Action(action)
 
-	e.CreatedAt, err = time.Parse(time.RFC3339Nano, createdAt)
+	e.CreatedAt, err = database.ParseTime(createdAt)
 	if err != nil {
 		return Entry{}, fmt.Errorf("parsing created_at: %w", err)
 	}
@@ -229,11 +234,11 @@ func buildListQuery(selectClause string, params ListParams) (string, []any) {
 	}
 	if params.Since != nil {
 		conditions = append(conditions, "created_at >= ?")
-		args = append(args, params.Since.Format(time.RFC3339Nano))
+		args = append(args, database.FormatTime(*params.Since))
 	}
 	if params.Until != nil {
 		conditions = append(conditions, "created_at < ?")
-		args = append(args, params.Until.Format(time.RFC3339Nano))
+		args = append(args, database.FormatTime(*params.Until))
 	}
 
 	query := selectClause + " FROM activity_log"

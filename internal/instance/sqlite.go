@@ -10,6 +10,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 
+	"github.com/refringe/huntarr2/internal/database"
 	"github.com/refringe/huntarr2/internal/encrypt"
 )
 
@@ -81,7 +82,7 @@ func (r *SQLiteRepository) Create(ctx context.Context, inst *Instance) error {
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		inst.ID.String(), inst.Name, string(inst.AppType),
 		inst.BaseURL, encryptedKey, inst.TimeoutMs,
-		now.Format(time.RFC3339Nano), now.Format(time.RFC3339Nano))
+		database.FormatTime(now), database.FormatTime(now))
 	if err != nil {
 		return fmt.Errorf("creating instance: %w", err)
 	}
@@ -102,7 +103,7 @@ func (r *SQLiteRepository) Update(ctx context.Context, inst *Instance) error {
 		        timeout_ms = ?, updated_at = ?
 		  WHERE id = ?`,
 		inst.Name, inst.BaseURL, encryptedKey,
-		inst.TimeoutMs, now.Format(time.RFC3339Nano), inst.ID.String())
+		inst.TimeoutMs, database.FormatTime(now), inst.ID.String())
 	if err != nil {
 		return fmt.Errorf("updating instance %s: %w", inst.ID, err)
 	}
@@ -193,11 +194,11 @@ func (r *SQLiteRepository) hydrateInstance(
 	inst.ID = id
 	inst.AppType = AppType(appType)
 
-	inst.CreatedAt, err = time.Parse(time.RFC3339Nano, createdAt)
+	inst.CreatedAt, err = database.ParseTime(createdAt)
 	if err != nil {
 		return Instance{}, fmt.Errorf("parsing created_at: %w", err)
 	}
-	inst.UpdatedAt, err = time.Parse(time.RFC3339Nano, updatedAt)
+	inst.UpdatedAt, err = database.ParseTime(updatedAt)
 	if err != nil {
 		return Instance{}, fmt.Errorf("parsing updated_at: %w", err)
 	}

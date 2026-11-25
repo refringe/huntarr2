@@ -76,7 +76,7 @@ func scanSettings(rows *sql.Rows) ([]Setting, error) {
 			s.InstanceID = &instID
 		}
 
-		s.UpdatedAt, err = time.Parse(time.RFC3339Nano, updatedAt)
+		s.UpdatedAt, err = database.ParseTime(updatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("parsing updated_at: %w", err)
 		}
@@ -91,7 +91,7 @@ func scanSettings(rows *sql.Rows) ([]Setting, error) {
 
 // execUpsert creates or updates one setting within tx via the global or per-instance unique index.
 func execUpsert(ctx context.Context, tx *sql.Tx, s *Setting) error {
-	now := time.Now().UTC().Format(time.RFC3339Nano)
+	now := database.FormatTime(time.Now())
 	id := uuid.New().String()
 
 	if s.InstanceID == nil {
