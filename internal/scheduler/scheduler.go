@@ -101,7 +101,7 @@ type Status struct {
 	Instances        []InstanceSchedule `json:"instances"`
 }
 
-// Scheduler is the scheduling engine; Status may be called from any goroutine while Run is executing.
+// Scheduler runs each instance's search cycles in the background; Status is safe to call from any goroutine.
 type Scheduler struct {
 	tickInterval time.Duration
 	instances    instanceLister
@@ -123,6 +123,11 @@ type Scheduler struct {
 	// limitLogged and windowSkipLogged mark skips already written to the activity log for the current hour or window.
 	limitLogged      bool
 	windowSkipLogged map[uuid.UUID]struct{}
+
+	// cycles tracks running search cycles; inFlight holds their instances and reserved their unspent search allowance.
+	cycles   sync.WaitGroup
+	inFlight map[uuid.UUID]struct{}
+	reserved int64
 }
 
 // New creates a Scheduler with the given tick interval and dependencies, rejecting a non-positive tick interval.
@@ -150,10 +155,11 @@ func New(
 		hourResetAt:  nextHourBoundary(time.Now()),
 
 		windowSkipLogged: make(map[uuid.UUID]struct{}),
+		inFlight:         make(map[uuid.UUID]struct{}),
 	}, nil
 }
 
-// Run starts the scheduling loop and blocks until ctx is cancelled.
+// Run starts the scheduling loop and blocks until ctx is cancelled and every running search cycle has returned.
 func (s *Scheduler) Run(ctx context.Context) error {
 	s.mu.Lock()
 	s.running = true
@@ -173,6 +179,7 @@ func (s *Scheduler) Run(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
+			s.cycles.Wait()
 			log.Info().Msg("scheduler stopped")
 			return ctx.Err()
 		case <-ticker.C:
@@ -241,89 +248,7 @@ func (s *Scheduler) tick(ctx context.Context) {
 		if err := ctx.Err(); err != nil {
 			return
 		}
-
-		s.mu.Lock()
-		allowance := int64(globalSettings.SearchLimit) - s.searchCount
-		logLimit := allowance <= 0 && !s.limitLogged
-		if logLimit {
-			s.limitLogged = true
-		}
-		s.mu.Unlock()
-
-		if allowance <= 0 {
-			if logLimit {
-				s.logActivity(ctx, nil, activity.LevelInfo, activity.ActionRateLimit,
-					fmt.Sprintf("hourly search limit reached (%d)", globalSettings.SearchLimit), nil)
-			}
-			break
-		}
-
-		resolved, err := s.settings.Resolve(ctx, inst.ID)
-		if err != nil {
-			log.Error().Err(err).Str("instance", inst.Name).
-				Msg("resolving instance settings")
-			continue
-		}
-
-		if !resolved.Enabled {
-			s.mu.Lock()
-			s.schedules[inst.ID] = newInstanceSchedule(
-				inst.ID, inst.Name, time.Time{}, false, 0,
-			)
-			delete(s.windowSkipLogged, inst.ID)
-			s.mu.Unlock()
-			continue
-		}
-
-		s.mu.Lock()
-		sched, exists := s.schedules[inst.ID]
-		s.mu.Unlock()
-
-		if exists && now.Before(sched.NextSearchAt) {
-			continue
-		}
-
-		if !inSearchWindow(resolved.SearchWindowStart, resolved.SearchWindowEnd, time.Now()) {
-			s.mu.Lock()
-			_, logged := s.windowSkipLogged[inst.ID]
-			s.windowSkipLogged[inst.ID] = struct{}{}
-			s.mu.Unlock()
-
-			if !logged {
-				s.logActivity(ctx, &inst.ID, activity.LevelDebug, activity.ActionSearchSkip,
-					"outside search window", map[string]any{
-						detailInstanceName: inst.Name,
-						"windowStart":      resolved.SearchWindowStart,
-						"windowEnd":        resolved.SearchWindowEnd,
-					})
-			}
-			continue
-		}
-
-		s.mu.Lock()
-		delete(s.windowSkipLogged, inst.ID)
-		s.mu.Unlock()
-
-		maxSearch := int(min(int64(resolved.BatchSize), allowance))
-		searched, totalItems := s.runInstanceCycle(ctx, inst, resolved, maxSearch)
-
-		cycleEnd := time.Now()
-
-		s.mu.Lock()
-		prevInterval := resolved.SearchInterval
-		if exists && sched.Interval > 0 {
-			prevInterval = sched.Interval
-		}
-		nextInterval := computeNextInterval(
-			resolved.SearchInterval, prevInterval, totalItems, resolved.BatchSize,
-		)
-		s.schedules[inst.ID] = newInstanceSchedule(
-			inst.ID, inst.Name, cycleEnd.Add(nextInterval), true, nextInterval,
-		)
-		if searched > 0 {
-			s.searchCount += int64(searched)
-		}
-		s.mu.Unlock()
+		s.startCycleIfDue(ctx, inst, now, globalSettings.SearchLimit)
 	}
 
 	s.mu.Lock()
@@ -339,6 +264,101 @@ func (s *Scheduler) tick(ctx context.Context) {
 
 	s.pollUpgradeHistory(ctx, insts)
 	s.pruneActivityLog(ctx, now)
+}
+
+// startCycleIfDue starts a background search cycle for an instance that is enabled, idle, due, and inside its window.
+func (s *Scheduler) startCycleIfDue(ctx context.Context, inst instance.Instance, now time.Time, hourlyLimit int) {
+	resolved, err := s.settings.Resolve(ctx, inst.ID)
+	if err != nil {
+		log.Error().Err(err).Str("instance", inst.Name).
+			Msg("resolving instance settings")
+		return
+	}
+
+	if !resolved.Enabled {
+		s.mu.Lock()
+		s.schedules[inst.ID] = newInstanceSchedule(
+			inst.ID, inst.Name, time.Time{}, false, 0,
+		)
+		delete(s.windowSkipLogged, inst.ID)
+		s.mu.Unlock()
+		return
+	}
+
+	s.mu.Lock()
+	sched, exists := s.schedules[inst.ID]
+	_, running := s.inFlight[inst.ID]
+	s.mu.Unlock()
+
+	if running || (exists && now.Before(sched.NextSearchAt)) {
+		return
+	}
+
+	if !inSearchWindow(resolved.SearchWindowStart, resolved.SearchWindowEnd, time.Now()) {
+		s.mu.Lock()
+		_, logged := s.windowSkipLogged[inst.ID]
+		s.windowSkipLogged[inst.ID] = struct{}{}
+		s.mu.Unlock()
+
+		if !logged {
+			s.logActivity(ctx, &inst.ID, activity.LevelDebug, activity.ActionSearchSkip,
+				"outside search window", map[string]any{
+					detailInstanceName: inst.Name,
+					"windowStart":      resolved.SearchWindowStart,
+					"windowEnd":        resolved.SearchWindowEnd,
+				})
+		}
+		return
+	}
+
+	maxSearch, logLimit := s.reserveSearches(inst.ID, hourlyLimit, resolved.BatchSize)
+	if logLimit {
+		s.logActivity(ctx, nil, activity.LevelInfo, activity.ActionRateLimit,
+			fmt.Sprintf("hourly search limit reached (%d)", hourlyLimit), nil)
+	}
+	if maxSearch == 0 {
+		return
+	}
+
+	prevInterval := resolved.SearchInterval
+	if exists && sched.Interval > 0 {
+		prevInterval = sched.Interval
+	}
+
+	s.cycles.Go(func() {
+		searched, totalItems := s.runInstanceCycle(ctx, inst, resolved, maxSearch)
+		nextInterval := computeNextInterval(
+			resolved.SearchInterval, prevInterval, totalItems, resolved.BatchSize,
+		)
+
+		s.mu.Lock()
+		s.schedules[inst.ID] = newInstanceSchedule(
+			inst.ID, inst.Name, time.Now().Add(nextInterval), true, nextInterval,
+		)
+		s.searchCount += int64(searched)
+		s.reserved -= int64(maxSearch)
+		delete(s.inFlight, inst.ID)
+		s.mu.Unlock()
+	})
+}
+
+// reserveSearches marks the instance as running and reserves up to batchSize of the hour's unused search allowance.
+func (s *Scheduler) reserveSearches(id uuid.UUID, hourlyLimit, batchSize int) (maxSearch int, logLimit bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	delete(s.windowSkipLogged, id)
+
+	maxSearch = int(min(int64(batchSize), int64(hourlyLimit)-s.searchCount-s.reserved))
+	if maxSearch <= 0 {
+		logLimit = s.searchCount >= int64(hourlyLimit) && !s.limitLogged
+		s.limitLogged = s.limitLogged || logLimit
+		return 0, logLimit
+	}
+
+	s.reserved += int64(maxSearch)
+	s.inFlight[id] = struct{}{}
+	return maxSearch, false
 }
 
 // pollUpgradeHistory polls each instance's history for upgrades and downloads, at most once per historyPollInterval.

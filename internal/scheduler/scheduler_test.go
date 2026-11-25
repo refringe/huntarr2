@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -40,6 +41,7 @@ func (f *fakeSettingsResolver) Resolve(_ context.Context, id uuid.UUID) (setting
 
 // fakeCooldownTracker tracks cooldown state in memory.
 type fakeCooldownTracker struct {
+	mu               sync.Mutex
 	coolingDown      map[uuid.UUID]map[int]struct{}
 	recorded         map[uuid.UUID][]int
 	deletedOlderThan []time.Duration
@@ -58,6 +60,8 @@ func (f *fakeCooldownTracker) FilterCoolingDown(
 	itemIDs []int,
 	_ time.Duration,
 ) ([]int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	cooling := f.coolingDown[instanceID]
 	var result []int
 	for _, id := range itemIDs {
@@ -73,6 +77,8 @@ func (f *fakeCooldownTracker) RecordSearches(
 	instanceID uuid.UUID,
 	itemIDs []int,
 ) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.recorded[instanceID] = append(f.recorded[instanceID], itemIDs...)
 	return nil
 }
@@ -87,10 +93,13 @@ func (f *fakeCooldownTracker) DeleteExpired(
 
 // fakeActivityLogger collects logged activity entries.
 type fakeActivityLogger struct {
+	mu      sync.Mutex
 	entries []activity.Entry
 }
 
 func (f *fakeActivityLogger) Log(_ context.Context, entry *activity.Entry) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	entry.ID = uuid.New()
 	entry.CreatedAt = time.Now()
 	f.entries = append(f.entries, *entry)
@@ -103,6 +112,7 @@ func (f *fakeActivityLogger) Prune(_ context.Context, _ time.Duration) (int64, e
 
 // fakeArrSearcher records calls and returns preconfigured results.
 type fakeArrSearcher struct {
+	mu               sync.Mutex
 	upgradeableItems map[uuid.UUID][]arr.UpgradeItem
 	missingItems     map[uuid.UUID][]arr.UpgradeItem
 	historyRecords   map[uuid.UUID][]arr.HistoryRecord
@@ -112,6 +122,10 @@ type fakeArrSearcher struct {
 	// upgradeableDelay makes Upgradeable sleep before returning; upgradeableReturnedAt records when it returned.
 	upgradeableDelay      time.Duration
 	upgradeableReturnedAt time.Time
+
+	// instanceDelays makes Upgradeable sleep per instance; upgradeableCalls counts its calls per instance.
+	instanceDelays   map[uuid.UUID]time.Duration
+	upgradeableCalls map[uuid.UUID]int
 }
 
 type searchCall struct {
@@ -124,6 +138,8 @@ func newFakeArrSearcher() *fakeArrSearcher {
 		upgradeableItems: make(map[uuid.UUID][]arr.UpgradeItem),
 		missingItems:     make(map[uuid.UUID][]arr.UpgradeItem),
 		historyRecords:   make(map[uuid.UUID][]arr.HistoryRecord),
+		instanceDelays:   make(map[uuid.UUID]time.Duration),
+		upgradeableCalls: make(map[uuid.UUID]int),
 	}
 }
 
@@ -131,9 +147,12 @@ func (f *fakeArrSearcher) Upgradeable(
 	_ context.Context,
 	instanceID uuid.UUID,
 ) (arr.UpgradeResult, error) {
-	if f.upgradeableDelay > 0 {
-		time.Sleep(f.upgradeableDelay)
+	if delay := f.upgradeableDelay + f.instanceDelays[instanceID]; delay > 0 {
+		time.Sleep(delay)
 	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.upgradeableCalls[instanceID]++
 	items := f.upgradeableItems[instanceID]
 	missing := f.missingItems[instanceID]
 	f.upgradeableReturnedAt = time.Now()
@@ -149,6 +168,8 @@ func (f *fakeArrSearcher) Search(
 	instanceID uuid.UUID,
 	itemIDs []int,
 ) (arr.SearchResult, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.searchCalls = append(f.searchCalls, searchCall{instanceID, itemIDs})
 	return arr.SearchResult{CommandID: 1}, f.searchErr
 }
@@ -405,16 +426,21 @@ func countActions(actLog *fakeActivityLogger, action activity.Action) int {
 }
 
 func TestRateLimitLoggedOncePerHour(t *testing.T) {
-	instID := uuid.New()
+	inst1 := uuid.New()
+	inst2 := uuid.New()
 	instances := &fakeInstanceLister{
-		instances: []instance.Instance{{ID: instID, Name: "Sonarr", AppType: instance.AppTypeSonarr}},
+		instances: []instance.Instance{
+			{ID: inst1, Name: "Sonarr", AppType: instance.AppTypeSonarr},
+			{ID: inst2, Name: "Radarr", AppType: instance.AppTypeRadarr},
+		},
 	}
 
 	settingsRes := newFakeSettingsResolver()
 	settingsRes.global.SearchLimit = 1
 
 	arrSearch := newFakeArrSearcher()
-	arrSearch.upgradeableItems[instID] = []arr.UpgradeItem{{ID: 1}}
+	arrSearch.upgradeableItems[inst1] = []arr.UpgradeItem{{ID: 1}}
+	arrSearch.upgradeableItems[inst2] = []arr.UpgradeItem{{ID: 2}}
 
 	actLog := &fakeActivityLogger{}
 	sched := newTestScheduler(t,
@@ -425,6 +451,9 @@ func TestRateLimitLoggedOncePerHour(t *testing.T) {
 
 	if got := countActions(actLog, activity.ActionRateLimit); got != 1 {
 		t.Errorf("rate_limit entries = %d, want 1 across several ticks", got)
+	}
+	if len(arrSearch.searchCalls) != 1 {
+		t.Errorf("searchCalls = %d, want 1 under a limit of 1", len(arrSearch.searchCalls))
 	}
 }
 
@@ -459,6 +488,89 @@ func TestWindowSkipLoggedOncePerClosedWindow(t *testing.T) {
 	}
 	if len(arrSearch.searchCalls) != 0 {
 		t.Errorf("searchCalls = %d, want 0 outside the window", len(arrSearch.searchCalls))
+	}
+}
+
+func TestSlowInstanceDoesNotDelayOthers(t *testing.T) {
+	slow := uuid.New()
+	fast := uuid.New()
+	instances := &fakeInstanceLister{
+		instances: []instance.Instance{
+			{ID: slow, Name: "Slow", AppType: instance.AppTypeSonarr},
+			{ID: fast, Name: "Fast", AppType: instance.AppTypeRadarr},
+		},
+	}
+
+	arrSearch := newFakeArrSearcher()
+	arrSearch.upgradeableItems[slow] = []arr.UpgradeItem{{ID: 1}}
+	arrSearch.upgradeableItems[fast] = []arr.UpgradeItem{{ID: 2}}
+	arrSearch.instanceDelays[slow] = 120 * time.Millisecond
+
+	sched := newTestScheduler(t,
+		instances, newFakeSettingsResolver(), newFakeCooldownTracker(), &fakeActivityLogger{},
+		arrSearch, newFakePollTracker(),
+	)
+
+	_ = runScheduler(t, sched)
+
+	if len(arrSearch.searchCalls) != 2 {
+		t.Fatalf("searchCalls = %d, want 2", len(arrSearch.searchCalls))
+	}
+	if got := arrSearch.searchCalls[0].instanceID; got != fast {
+		t.Errorf("first search ran for %s, want the fast instance while the slow one was still fetching", got)
+	}
+}
+
+func TestRunningCycleIsNotStartedAgain(t *testing.T) {
+	instID := uuid.New()
+	instances := &fakeInstanceLister{
+		instances: []instance.Instance{{ID: instID, Name: "Sonarr", AppType: instance.AppTypeSonarr}},
+	}
+
+	arrSearch := newFakeArrSearcher()
+	arrSearch.upgradeableItems[instID] = []arr.UpgradeItem{{ID: 1}}
+	arrSearch.instanceDelays[instID] = 120 * time.Millisecond
+
+	sched := newTestScheduler(t,
+		instances, newFakeSettingsResolver(), newFakeCooldownTracker(), &fakeActivityLogger{},
+		arrSearch, newFakePollTracker(),
+	)
+
+	_ = runScheduler(t, sched)
+
+	if got := arrSearch.upgradeableCalls[instID]; got != 1 {
+		t.Errorf("Upgradeable calls = %d, want 1 while the cycle spans several ticks", got)
+	}
+}
+
+func TestRunWaitsForRunningCycles(t *testing.T) {
+	instID := uuid.New()
+	instances := &fakeInstanceLister{
+		instances: []instance.Instance{{ID: instID, Name: "Sonarr", AppType: instance.AppTypeSonarr}},
+	}
+
+	arrSearch := newFakeArrSearcher()
+	arrSearch.instanceDelays[instID] = time.Second
+
+	sched := newTestScheduler(t,
+		instances, newFakeSettingsResolver(), newFakeCooldownTracker(), &fakeActivityLogger{},
+		arrSearch, newFakePollTracker(),
+	)
+
+	var elapsed time.Duration
+	synctest.Test(t, func(t *testing.T) {
+		start := time.Now()
+		ctx, cancel := context.WithTimeout(t.Context(), runBudget)
+		defer cancel()
+		_ = sched.Run(ctx)
+		elapsed = time.Since(start)
+	})
+
+	if elapsed < time.Second {
+		t.Errorf("Run returned after %v, want it to wait for the cycle still running", elapsed)
+	}
+	if len(sched.Status().Instances) != 1 {
+		t.Errorf("schedules = %d, want the finished cycle's schedule recorded", len(sched.Status().Instances))
 	}
 }
 
